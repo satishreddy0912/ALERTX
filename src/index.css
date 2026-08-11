@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-navy-900 text-white antialiased;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-navy-700 bg-navy-800 shadow-lg shadow-navy-950/30;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent-500 text-white hover:bg-accent-600;
+  }
+  .btn-danger {
+    @apply btn bg-emergency-600 text-white hover:bg-emergency-700;
+  }
+  .btn-ghost {
+    @apply btn border border-navy-600 bg-navy-700 text-white hover:bg-navy-600;
+  }
+  .input {
+    @apply w-full rounded-xl border border-navy-600 bg-navy-800 px-4 py-3 text-white placeholder-secondary-600 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-secondary-400;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}
+
+/* Cinematic intro animations */
+@keyframes lightSweepRight {
+  0% { transform: scaleX(0); transform-origin: left; opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: scaleX(1); transform-origin: left; opacity: 0; }
+}
+
+@keyframes radarSweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes blipPulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.5); }
+}
+
+@keyframes introProgress {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in, .animate-pop-in, .animate-slide-in, .animate-pulse-ring {
+    animation: none !important;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #071A33;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(47, 128, 237, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(47, 128, 237, 0.5);
+}
