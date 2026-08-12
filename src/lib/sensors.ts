@@ -562,6 +562,7 @@ function capitalize(s: string): string {
 // ─── SensorManager ─────────────────────────────────────────────────
 
 export class SensorManager {
+  
   private readings: SensorReading[] = [];
   private listeners: ((result: SensorDetectionResult) => void)[] = [];
   private stateListeners: ((state: DetectionState, confidence: number) => void)[] = [];

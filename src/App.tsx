@@ -53,6 +53,7 @@ function App() {
 
   // Sensor detection alert
   const [sensorDetection, setSensorDetection] = useState<SensorDetectionResult | null>(null);
+  const [sosSuccess, setSosSuccess] = useState<string | null>(null);
 
   // Emergency popup (responder)
   const knownIdsRef = useRef<Set<string>>(new Set());
@@ -123,11 +124,15 @@ function App() {
     void incident;
     void isHighConf;
   }
-
   function handleSensorAlertCancel() {
-    setSensorDetection(null);
-    // Record cancellation (could add audit entry, but no incident exists yet)
-  }
+    const manager = getSensorManager();
+
+  // Stop emergency sound and vibration
+  manager.stopEmergencyAlert();
+
+  // Close the emergency detection alert
+  setSensorDetection(null);
+}
   async function getAddressFromCoordinates(
   latitude: number,
   longitude: number
@@ -149,56 +154,89 @@ function App() {
     return `Lat ${latitude.toFixed(4)}, Lng ${longitude.toFixed(4)}`;
   }
 }
+function handleSOS() {
+  const showSuccess = (address: string) => {
+    setSosSuccess(address);
 
-  function handleSOS() {
-    console.log('SOS triggered');
-    // Try to get location
-    const location = 'SOS trigger — location unavailable';
-    const coords = null;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-         const { latitude, longitude } = pos.coords;
+    // Automatically hide after 5 seconds
+    setTimeout(() => {
+      setSosSuccess(null);
+    }, 5000);
+  };
 
-store.addIncident({
-  type: 'Other',
-  name: 'SOS User',
-  phone: '0000000000',
-  location: 'Getting location...',
-  description: 'Manual SOS trigger — emergency button pressed.',
-  imageData: null,
-  coords: { lat: latitude, lng: longitude },
-}, 'fast_sos');
+  if (!navigator.geolocation) {
+    store.addIncident({
+      type: 'Other',
+      name: 'SOS User',
+      phone: '0000000000',
+      location: 'Location unavailable',
+      description: 'Manual SOS trigger — emergency button pressed.',
+      imageData: null,
+      coords: null,
+    }, 'fast_sos');
 
-getAddressFromCoordinates(latitude, longitude).then((address) => {
-  console.log('Address received:', address);
-});
-        },
-        () => {
-          store.addIncident({
-            type: 'Other',
-            name: 'SOS User',
-            phone: '0000000000',
-            location,
-            description: 'Manual SOS trigger — emergency button pressed.',
-            imageData: null,
-            coords,
-          }, 'fast_sos');
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    } else {
+    showSuccess('Location unavailable');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+
+      let address = `Lat ${latitude.toFixed(4)}, Lng ${longitude.toFixed(4)}`;
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data.display_name) {
+            address = data.display_name;
+          }
+        }
+      } catch {
+        // Keep coordinates if address lookup fails
+      }
+
       store.addIncident({
         type: 'Other',
         name: 'SOS User',
         phone: '0000000000',
-        location,
+        location: address,
         description: 'Manual SOS trigger — emergency button pressed.',
         imageData: null,
-        coords,
+        coords: {
+          lat: latitude,
+          lng: longitude,
+        },
       }, 'fast_sos');
+
+      showSuccess(address);
+    },
+    () => {
+      store.addIncident({
+        type: 'Other',
+        name: 'SOS User',
+        phone: '0000000000',
+        location: 'Location permission denied',
+        description: 'Manual SOS trigger — emergency button pressed.',
+        imageData: null,
+        coords: null,
+      }, 'fast_sos');
+
+      showSuccess('Location permission denied');
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
     }
-  }
+  );
+}
+
 
   // When entering the dashboard view, snapshot existing incident IDs
   useEffect(() => {
@@ -393,6 +431,29 @@ getAddressFromCoordinates(latitude, longitude).then((address) => {
           <SosButtonControlled onSend={handleSOS} onCancel={() => {}} />
         </div>
       )}
+      {sosSuccess && (
+  <div className="fixed top-6 left-1/2 z-[100] w-[90%] max-w-md -translate-x-1/2">
+    <div className="rounded-2xl border border-green-300 bg-white p-4 shadow-2xl">
+      <div className="flex items-start gap-3">
+        <div className="text-2xl">🚨</div>
+
+        <div className="min-w-0">
+          <h3 className="font-bold text-green-700">
+            SOS Sent Successfully
+          </h3>
+
+          <p className="mt-1 text-sm text-gray-700">
+            Emergency report has been created.
+          </p>
+
+          <p className="mt-2 text-sm text-gray-600">
+            📍 {sosSuccess}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Sensor onboarding modal */}
       {showOnboarding && <SensorOnboarding onComplete={handleOnboardingComplete} />}
