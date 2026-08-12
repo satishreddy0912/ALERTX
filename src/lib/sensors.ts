@@ -101,33 +101,121 @@ export function analyzeSensorReadings(
   state: InternalState = makeInternalState(),
   now: number = Date.now(),
 ): SensorDetectionResult {
-  if (readings.length < 5) {
-    return { detected: false, confidence: 0, eventType: 'NONE', reason: 'Insufficient sensor data', highConfidence: false, detectionState: 'MONITORING' };
+  /*
+   * ALERTX ACCIDENT DETECTION — HACKATHON VERSION
+   *
+   * Detection requires a RAPID, high-energy event.
+   *
+   * Normal:
+   * - opening the website
+   * - picking up the phone
+   * - walking
+   * - normal turning
+   * - slow direction changes
+   * - small shakes
+   * - road vibration
+   * - speed breakers
+   * - small bumps
+   *
+   * should not trigger.
+   *
+   * A detection requires:
+   * 1. Sensor baseline already established
+   * 2. A rapid acceleration spike
+   * 3. Significant rotation during/near the spike
+   * 4. Multiple abnormal readings
+   * 5. Motion changes rapidly rather than gradually
+   */
+
+  if (readings.length < SENSOR_CONFIG.WINDOW_SIZE) {
+    return {
+      detected: false,
+      confidence: 0,
+      eventType: 'NONE',
+      reason: 'Collecting sensor data',
+      highConfidence: false,
+      detectionState: 'MONITORING',
+    };
   }
 
   const window = readings.slice(-SENSOR_CONFIG.WINDOW_SIZE);
 
-  // ── 1. Baseline calibration (slowly adapts) ──
-  const recent = window.slice(-SENSOR_CONFIG.BASELINE_SAMPLES);
-  const recentAvgAccel = recent.reduce((s, r) => s + r.accelerationMagnitude, 0) / recent.length;
-  const recentAvgRot = recent.reduce((s, r) => s + r.rotationMagnitude, 0) / recent.length;
+  // ------------------------------------------------------------
+  // 1. BASELINE CALIBRATION
+  // ------------------------------------------------------------
+
+  const calibrationSamples = Math.min(
+    window.length,
+    SENSOR_CONFIG.BASELINE_SAMPLES
+  );
+
+  const calibrationWindow = window.slice(-calibrationSamples);
+
+  const avgAccel =
+    calibrationWindow.reduce(
+      (sum, r) => sum + r.accelerationMagnitude,
+      0
+    ) / calibrationWindow.length;
+
+  const avgRotation =
+    calibrationWindow.reduce(
+      (sum, r) => sum + r.rotationMagnitude,
+      0
+    ) / calibrationWindow.length;
 
   if (state.baselineSamples < SENSOR_CONFIG.BASELINE_SAMPLES) {
-    state.baselineAccelSum += recentAvgAccel;
-    state.baselineRotationSum += recentAvgRot;
+    state.baselineAccelSum += avgAccel;
+    state.baselineRotationSum += avgRotation;
     state.baselineSamples++;
-    if (state.baselineSamples >= SENSOR_CONFIG.BASELINE_SAMPLES) {
-      state.baselineAccel = state.baselineAccelSum / state.baselineSamples;
-      state.baselineRotation = state.baselineRotationSum / state.baselineSamples;
+
+    if (
+      state.baselineSamples >=
+      SENSOR_CONFIG.BASELINE_SAMPLES
+    ) {
+      state.baselineAccel =
+        state.baselineAccelSum /
+        state.baselineSamples;
+
+      state.baselineRotation =
+        state.baselineRotationSum /
+        state.baselineSamples;
     }
-  } else {
-    state.baselineAccel = state.baselineAccel * (1 - SENSOR_CONFIG.BASELINE_ADAPT_RATE) + recentAvgAccel * SENSOR_CONFIG.BASELINE_ADAPT_RATE;
-    state.baselineRotation = state.baselineRotation * (1 - SENSOR_CONFIG.BASELINE_ADAPT_RATE) + recentAvgRot * SENSOR_CONFIG.BASELINE_ADAPT_RATE;
+
+    state.confidence = 0;
+    state.consecutiveAbnormal = 0;
+    state.detectionState = 'MONITORING';
+
+    return {
+      detected: false,
+      confidence: 0,
+      eventType: 'NONE',
+      reason: 'Calibrating sensors — normal movement ignored',
+      highConfidence: false,
+      detectionState: 'MONITORING',
+    };
   }
 
-  // ── 2. Find peak acceleration in the window ──
+  // ------------------------------------------------------------
+  // 2. HARD SAFETY LIMITS
+  // ------------------------------------------------------------
+
+  // These values are intentionally high for the hackathon prototype.
+  // Normal phone movement should remain far below this level.
+
+  const RAPID_ACCEL_THRESHOLD = 28; // m/s²
+  const EXTREME_ACCEL_THRESHOLD = 35; // m/s²
+  const RAPID_ROTATION_THRESHOLD = 4.5; // rad/s
+
+  // Minimum number of abnormal readings required.
+  const REQUIRED_ABNORMAL_READINGS = 3;
+
+  // ------------------------------------------------------------
+  // 3. FIND PEAK ACCELERATION
+  // ------------------------------------------------------------
+
   let peakAccel = 0;
   let peakIndex = 0;
+
   for (let i = 0; i < window.length; i++) {
     if (window[i].accelerationMagnitude > peakAccel) {
       peakAccel = window[i].accelerationMagnitude;
@@ -135,166 +223,335 @@ export function analyzeSensorReadings(
     }
   }
 
-  // ── 3. Dead zone check — small movements are ignored entirely ──
-  const aboveAccelDeadZone = peakAccel > SENSOR_CONFIG.ACCEL_DEAD_ZONE;
+  // ------------------------------------------------------------
+  // 4. FIND ROTATION NEAR THE ACCELERATION SPIKE
+  // ------------------------------------------------------------
 
-  // Find peak rotation near the impact
-  const rotStart = Math.max(0, peakIndex - 3);
-  const rotEnd = Math.min(window.length, peakIndex + 4);
+  const rotationStart = Math.max(0, peakIndex - 5);
+  const rotationEnd = Math.min(
+    window.length,
+    peakIndex + 6
+  );
+
   let peakRotation = 0;
-  for (let i = rotStart; i < rotEnd; i++) {
-    if (window[i].rotationMagnitude > peakRotation) {
-      peakRotation = window[i].rotationMagnitude;
+
+  for (
+    let i = rotationStart;
+    i < rotationEnd;
+    i++
+  ) {
+    if (
+      window[i].rotationMagnitude >
+      peakRotation
+    ) {
+      peakRotation =
+        window[i].rotationMagnitude;
     }
   }
-  const aboveRotDeadZone = peakRotation > SENSOR_CONFIG.ROTATION_DEAD_ZONE;
 
-  // ── 4. Cooldown check — don't re-evaluate the same event ──
-  const inRejectCooldown = now - state.lastRejectTime < SENSOR_CONFIG.REJECT_COOLDOWN_MS;
-  const inDetectionCooldown = now - state.lastDetectionTime < SENSOR_CONFIG.COOLDOWN_MS;
+  // ------------------------------------------------------------
+  // 5. RAPID ACCELERATION CHECK
+  // ------------------------------------------------------------
 
-  // ── 5. Dead zone → NORMAL_MOVEMENT, confidence decays ──
-  if (!aboveAccelDeadZone && !aboveRotDeadZone) {
+  const rapidAcceleration =
+    peakAccel >= RAPID_ACCEL_THRESHOLD;
+
+  const extremeAcceleration =
+    peakAccel >= EXTREME_ACCEL_THRESHOLD;
+
+  // ------------------------------------------------------------
+  // 6. RAPID ROTATION CHECK
+  // ------------------------------------------------------------
+
+  const rapidRotation =
+    peakRotation >= RAPID_ROTATION_THRESHOLD;
+
+  // ------------------------------------------------------------
+  // 7. COUNT ABNORMAL READINGS
+  // ------------------------------------------------------------
+
+  let abnormalCount = 0;
+
+  for (const reading of window) {
+    const abnormal =
+      reading.accelerationMagnitude >=
+        RAPID_ACCEL_THRESHOLD ||
+      reading.rotationMagnitude >=
+        RAPID_ROTATION_THRESHOLD;
+
+    if (abnormal) {
+      abnormalCount++;
+    }
+  }
+
+  const sustainedEvent =
+    abnormalCount >= REQUIRED_ABNORMAL_READINGS;
+
+  // ------------------------------------------------------------
+  // 8. CHECK HOW FAST THE ACCELERATION CHANGED
+  // ------------------------------------------------------------
+
+  let rapidChange = false;
+
+  if (peakIndex > 0) {
+    const before =
+      window[Math.max(0, peakIndex - 3)]
+        .accelerationMagnitude;
+
+    const increase =
+      peakAccel - before;
+
+    // A sudden increase is much more meaningful than
+    // continuously high acceleration.
+    rapidChange = increase >= 12;
+  }
+
+  // ------------------------------------------------------------
+  // 9. CHECK POST-IMPACT MOTION
+  // ------------------------------------------------------------
+
+  const postImpact =
+    window.slice(peakIndex + 1);
+
+  let postImpactStillness = false;
+
+  if (postImpact.length >= 5) {
+    const postAverage =
+      postImpact.reduce(
+        (sum, r) =>
+          sum + r.accelerationMagnitude,
+        0
+      ) / postImpact.length;
+
+    postImpactStillness =
+      postAverage <= 14;
+  }
+
+  // ------------------------------------------------------------
+  // 10. COOLDOWN
+  // ------------------------------------------------------------
+
+  const inRejectCooldown =
+    now - state.lastRejectTime <
+    SENSOR_CONFIG.REJECT_COOLDOWN_MS;
+
+  const inDetectionCooldown =
+    now - state.lastDetectionTime <
+    SENSOR_CONFIG.COOLDOWN_MS;
+
+  if (
+    inRejectCooldown ||
+    inDetectionCooldown
+  ) {
+    return {
+      detected: false,
+      confidence: state.confidence,
+      eventType: 'NONE',
+      reason: 'Detection cooldown active',
+      highConfidence: false,
+      detectionState: state.detectionState,
+    };
+  }
+
+  // ------------------------------------------------------------
+  // 11. NORMAL MOVEMENT FILTER
+  // ------------------------------------------------------------
+
+  if (
+    !rapidAcceleration &&
+    !rapidRotation
+  ) {
+    state.confidence *=
+      SENSOR_CONFIG.CONFIDENCE_DECAY_RATE;
+
+    if (state.confidence < 0.02) {
+      state.confidence = 0;
+      state.detectionState =
+        'NORMAL_MOVEMENT';
+    }
+
     state.consecutiveAbnormal = 0;
-    state.confidence *= SENSOR_CONFIG.CONFIDENCE_DECAY_RATE;
-    if (state.confidence < 0.02) state.confidence = 0;
-    state.detectionState = state.confidence > 0 ? state.detectionState : 'NORMAL_MOVEMENT';
+
     return {
       detected: false,
       confidence: state.confidence,
       eventType: 'NONE',
-      reason: 'Normal movement — within dead zone',
+      reason:
+        'Normal movement — no rapid impact detected',
       highConfidence: false,
-      detectionState: state.confidence > 0 ? state.detectionState : 'NORMAL_MOVEMENT',
+      detectionState:
+        state.confidence > 0
+          ? state.detectionState
+          : 'NORMAL_MOVEMENT',
     };
   }
 
-  // ── 6. Count consecutive abnormal readings ──
-  const tail = window.slice(-SENSOR_CONFIG.MIN_CONSECUTIVE_ABNORMAL);
-  const allAbnormal = tail.length >= SENSOR_CONFIG.MIN_CONSECUTIVE_ABNORMAL
-    ? tail.every(r => r.accelerationMagnitude > SENSOR_CONFIG.ACCEL_DEAD_ZONE || r.rotationMagnitude > SENSOR_CONFIG.ROTATION_DEAD_ZONE)
-    : false;
+  // ------------------------------------------------------------
+  // 12. SINGLE SPIKE FILTER
+  // ------------------------------------------------------------
 
-  if (allAbnormal) {
-    state.consecutiveAbnormal++;
+  if (
+    !sustainedEvent &&
+    !extremeAcceleration
+  ) {
+    state.confidence *= 0.5;
+    state.consecutiveAbnormal = 0;
+    state.lastRejectTime = now;
+    state.detectionState =
+      'NORMAL_MOVEMENT';
+
+    return {
+      detected: false,
+      confidence: state.confidence,
+      eventType: 'TRANSIENT_MOTION',
+      reason:
+        'Single transient movement rejected',
+      highConfidence: false,
+      detectionState:
+        'NORMAL_MOVEMENT',
+    };
+  }
+
+  // ------------------------------------------------------------
+  // 13. MAIN ACCIDENT GATE
+  // ------------------------------------------------------------
+  //
+  // IMPORTANT:
+  //
+  // We require BOTH:
+  //
+  //     rapid acceleration
+  //            +
+  //     rapid rotation
+  //
+  // This prevents:
+  //
+  // acceleration alone -> alert
+  // rotation alone     -> alert
+  //
+  // ------------------------------------------------------------
+
+  const accidentPattern =
+    rapidAcceleration &&
+    rapidRotation &&
+    sustainedEvent &&
+    rapidChange;
+
+  if (!accidentPattern) {
+    state.confidence = Math.min(
+      state.confidence * 0.5,
+      0.25
+    );
+
+    state.consecutiveAbnormal = 0;
+    state.detectionState =
+      'ANALYZING';
+
+    return {
+      detected: false,
+      confidence: state.confidence,
+      eventType: 'NONE',
+      reason:
+        'Rapid movement detected, but no complete accident pattern',
+      highConfidence: false,
+      detectionState:
+        'ANALYZING',
+    };
+  }
+
+  // ------------------------------------------------------------
+  // 14. CALCULATE CONFIDENCE
+  // ------------------------------------------------------------
+
+  let confidence = 0;
+
+  // Strong acceleration
+  if (peakAccel >= EXTREME_ACCEL_THRESHOLD) {
+    confidence += 0.40;
   } else {
-    state.consecutiveAbnormal = Math.max(0, state.consecutiveAbnormal - 1);
+    confidence += 0.30;
   }
 
-  // ── 7. Road bump rejection ──
-  // Strong accel spike but little rotation AND motion returns to normal quickly
-  if (aboveAccelDeadZone && !aboveRotDeadZone) {
-    const postSpike = window.slice(peakIndex + 1);
-    if (postSpike.length >= 5) {
-      const postAvg = postSpike.reduce((s, r) => s + r.accelerationMagnitude, 0) / postSpike.length;
-      if (postAvg < SENSOR_CONFIG.ACCEL_DEAD_ZONE) {
-        state.confidence *= 0.5;
-        state.consecutiveAbnormal = 0;
-        state.lastRejectTime = now;
-        state.detectionState = state.confidence > 0.05 ? 'ANALYZING' : 'NORMAL_MOVEMENT';
-        return {
-          detected: false,
-          confidence: state.confidence,
-          eventType: 'TRANSIENT_MOTION',
-          reason: `Transient motion (road bump/pothole) — accel spike ${peakAccel.toFixed(1)} m/s² without rotation, motion returned to normal`,
-          highConfidence: false,
-          detectionState: state.detectionState,
-        };
-      }
-    }
-  }
-
-  // ── 8. Cooldown — skip evaluation if recently rejected or detected ──
-  if (inRejectCooldown || inDetectionCooldown) {
-    return {
-      detected: false,
-      confidence: state.confidence,
-      eventType: 'NONE',
-      reason: 'Cooldown active — waiting for fresh data',
-      highConfidence: false,
-      detectionState: state.detectionState,
-    };
-  }
-
-  // ── 9. Require sustained abnormal readings to enter ANALYZING ──
-  if (state.consecutiveAbnormal < SENSOR_CONFIG.MIN_CONSECUTIVE_ABNORMAL && state.confidence < SENSOR_CONFIG.MIN_CONFIDENCE) {
-    state.confidence *= SENSOR_CONFIG.CONFIDENCE_DECAY_RATE;
-    state.detectionState = state.confidence > 0.1 ? 'ANALYZING' : 'NORMAL_MOVEMENT';
-    return {
-      detected: false,
-      confidence: state.confidence,
-      eventType: 'NONE',
-      reason: 'Abnormal reading detected but not sustained enough — monitoring',
-      highConfidence: false,
-      detectionState: state.detectionState,
-    };
-  }
-
-  // ── 10. Multi-sensor confidence calculation ──
-  state.detectionState = 'ANALYZING';
-  const reasons: string[] = [];
-
-  const impactRatio = (peakAccel - state.baselineAccel) / (SENSOR_CONFIG.IMPACT_ACCEL_THRESHOLD - state.baselineAccel);
-  const impactBoost = Math.max(0, Math.min(SENSOR_CONFIG.CONFIDENCE_BOOST_IMPACT, impactRatio * SENSOR_CONFIG.CONFIDENCE_BOOST_IMPACT));
-  state.confidence = Math.max(state.confidence, impactBoost);
-  reasons.push(`strong impact (${peakAccel.toFixed(1)} m/s²)`);
-
-  const hasSignificantRotation = peakRotation >= SENSOR_CONFIG.SIGNIFICANT_ROTATION_THRESHOLD;
-  if (hasSignificantRotation) {
-    state.confidence += SENSOR_CONFIG.CONFIDENCE_BOOST_ROTATION;
-    reasons.push(`significant rotation (${peakRotation.toFixed(1)} rad/s)`);
+  // Strong rotation
+  if (peakRotation >= 6) {
+    confidence += 0.30;
   } else {
-    state.confidence -= SENSOR_CONFIG.CONFIDENCE_PENALTY_NO_ROTATION;
+    confidence += 0.20;
   }
 
-  const postImpactReadings = window.slice(peakIndex + 1);
-  if (postImpactReadings.length >= 5) {
-    const avgPostAccel = postImpactReadings.reduce((s, r) => s + r.accelerationMagnitude, 0) / postImpactReadings.length;
-    const hasPostImpactStillness = avgPostAccel <= SENSOR_CONFIG.POST_IMPACT_STILL_THRESHOLD;
-    if (hasPostImpactStillness) {
-      state.confidence += SENSOR_CONFIG.CONFIDENCE_BOOST_STILLNESS;
-      reasons.push('post-impact stillness');
-    } else {
-      state.confidence -= SENSOR_CONFIG.CONFIDENCE_PENALTY_CONTINUED_MOVEMENT;
-      reasons.push('continued movement after impact');
-    }
+  // Rapid change
+  if (rapidChange) {
+    confidence += 0.15;
   }
 
-  state.confidence = Math.max(0, Math.min(1, state.confidence));
+  // Multiple abnormal readings
+  if (abnormalCount >= 5) {
+    confidence += 0.10;
+  }
 
-  // ── 11. Determine event type & detection ──
-  let eventType: SensorDetectionResult['eventType'] = 'NONE';
+  // Post-impact stabilization
+  if (postImpactStillness) {
+    confidence += 0.10;
+  }
 
-  if (state.confidence < SENSOR_CONFIG.MIN_CONFIDENCE) {
-    state.detectionState = 'ANALYZING';
+  confidence =
+    Math.max(0, Math.min(1, confidence));
+
+  state.confidence = confidence;
+
+  // ------------------------------------------------------------
+  // 15. FINAL CONFIDENCE GATE
+  // ------------------------------------------------------------
+
+  if (confidence < 0.75) {
+    state.detectionState =
+      'ANALYZING';
+
     return {
       detected: false,
-      confidence: state.confidence,
+      confidence,
       eventType: 'NONE',
-      reason: `Analyzing unusual motion — confidence ${Math.round(state.confidence * 100)}% below threshold`,
+      reason:
+        `Strong movement detected but confidence is only ${Math.round(
+          confidence * 100
+        )}%`,
       highConfidence: false,
-      detectionState: 'ANALYZING',
+      detectionState:
+        'ANALYZING',
     };
   }
 
-  if (hasSignificantRotation && state.confidence >= SENSOR_CONFIG.MIN_CONFIDENCE + 0.15) {
-    eventType = 'POSSIBLE_COLLISION';
-  } else {
-    eventType = 'POSSIBLE_IMPACT';
-  }
+  // ------------------------------------------------------------
+  // 16. ACCIDENT DETECTED
+  // ------------------------------------------------------------
 
-  const highConfidence = state.confidence >= SENSOR_CONFIG.HIGH_CONFIDENCE_THRESHOLD;
-  state.detectionState = 'POSSIBLE_ACCIDENT';
+  const eventType =
+    peakRotation >= 6
+      ? 'POSSIBLE_COLLISION'
+      : 'POSSIBLE_IMPACT';
+
+  state.detectionState =
+    'POSSIBLE_ACCIDENT';
+
   state.lastDetectionTime = now;
   state.consecutiveAbnormal = 0;
 
+  const highConfidence =
+    confidence >= 0.85;
+
   return {
     detected: true,
-    confidence: state.confidence,
+    confidence,
     eventType,
-    reason: `${capitalize(reasons.join(', '))} — confidence ${Math.round(state.confidence * 100)}% suggests a ${eventType.replace('POSSIBLE_', 'possible ').toLowerCase()}`,
+    reason:
+      `Rapid impact detected — ${peakAccel.toFixed(
+        1
+      )} m/s² acceleration + ${peakRotation.toFixed(
+        1
+      )} rad/s rotation`,
     highConfidence,
-    detectionState: 'POSSIBLE_ACCIDENT',
+    detectionState:
+      'POSSIBLE_ACCIDENT',
   };
 }
 
