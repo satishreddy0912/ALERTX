@@ -61,23 +61,59 @@ export function ReportEmergencyPage({ onSubmit, onGoDashboard, onViewIncident }:
     if (fileRef.current) fileRef.current.value = '';
   }
 
-  function useMyLocation() {
-    setGeoStatus('loading');
-    if (!navigator.geolocation) {
-      setGeoStatus('error');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setCoords({ lat: latitude, lng: longitude });
-        setLocation((prev) => prev || `Lat ${latitude.toFixed(4)}, Lng ${longitude.toFixed(4)}`);
-        setGeoStatus('ok');
-      },
-      () => setGeoStatus('error'),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+async function useMyLocation() {
+  setGeoStatus('loading');
+
+  if (!navigator.geolocation) {
+    setGeoStatus('error');
+    setError('Location is not supported by this browser.');
+    return;
   }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+
+      // Always keep exact coordinates internally
+      setCoords({
+        lat: latitude,
+        lng: longitude,
+      });
+
+      // Temporary fallback if address lookup fails
+      let address = `Lat ${latitude.toFixed(4)}, Lng ${longitude.toFixed(4)}`;
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data.display_name) {
+            address = data.display_name;
+          }
+        }
+      } catch {
+        // Keep coordinate fallback
+      }
+
+      setLocation(address);
+      setGeoStatus('ok');
+      setError('');
+    },
+    () => {
+      setGeoStatus('error');
+      setError('Location permission denied. Please allow location access.');
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }
+  );
+}
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -239,11 +275,11 @@ export function ReportEmergencyPage({ onSubmit, onGoDashboard, onViewIncident }:
             <button type="button" onClick={useMyLocation} className="btn-ghost py-2.5 text-sm">
               <LocateFixed className={`h-4 w-4 ${geoStatus === 'loading' ? 'animate-spin' : ''}`} /> Use My Location
             </button>
-            {geoStatus === 'ok' && coords && (
-              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-                <MapPin className="h-3.5 w-3.5" /> {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
-              </span>
-            )}
+           {geoStatus === 'ok' && (
+  <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+    <MapPin className="h-3.5 w-3.5" /> Location found
+  </span>
+)}
             {geoStatus === 'error' && (
               <span className="flex items-center gap-1.5 text-xs text-emergency-400">
                 <AlertCircle className="h-3.5 w-3.5" /> Location permission denied

@@ -7,7 +7,6 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof Home }[] = [
   { key: 'report', label: 'Report Emergency', icon: Siren },
   { key: 'simulator', label: 'Detection Simulator', icon: Radar },
   { key: 'dashboard', label: 'Responder Dashboard', icon: LayoutDashboard },
-  { key: 'incidents', label: 'Incidents', icon: AlertTriangle },
   { key: 'responders', label: 'Responders', icon: Users },
   { key: 'about', label: 'About', icon: Info },
 ];
@@ -162,12 +161,11 @@ export function Layout({ current, onNavigate, children, session, adminSession, o
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-navy-700 bg-navy-900 shadow-lg shadow-navy-950/50 backdrop-blur lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-4 border-t border-navy-700 bg-navy-900 shadow-lg shadow-navy-950/50 backdrop-blur lg:hidden">
         {([
           ['home', Home],
           ['report', Siren],
           ['dashboard', LayoutDashboard],
-          ['incidents', AlertTriangle],
           ['simulator', Radar],
         ] as [ViewKey, typeof Home][]).map(([key, Icon]) => (
           <button

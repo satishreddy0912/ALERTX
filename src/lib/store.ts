@@ -98,15 +98,68 @@ const SEED_INCIDENTS: Incident[] = [
     reason: 'The available information does not provide enough evidence to confidently determine whether an emergency is occurring.',
   },
 ];
-
 const SEED_RESPONDERS: Responder[] = [
-  { id: 'r1', name: 'Medic Alpha-1', type: 'Medical Response', location: 'Jubilee Hills, Hyderabad', status: 'Responding', assignedIncidentId: 'ER-2041' },
-  { id: 'r2', name: 'Fire Unit Bravo-2', type: 'Fire & Rescue', location: 'Kondapur, Hyderabad', status: 'Busy', assignedIncidentId: 'ER-2042' },
-  { id: 'r3', name: 'Urban Rescue Gamma-3', type: 'Urban Rescue', location: 'Begumpet, Hyderabad', status: 'Available', assignedIncidentId: null },
-  { id: 'r4', name: 'Traffic Delta-4', type: 'Traffic Response', location: 'Gachibowli, Hyderabad', status: 'Available', assignedIncidentId: null },
-  { id: 'r5', name: 'Medic Alpha-5', type: 'Medical Response', location: 'Hitech City, Hyderabad', status: 'Offline', assignedIncidentId: null },
+  {
+    id: 'r1',
+    name: 'Medic Alpha-1',
+    type: 'Medical Response',
+    location: 'Jubilee Hills, Hyderabad',
+    status: 'Responding',
+    assignedIncidentId: 'ER-2041',
+    coords: {
+      lat: 17.4239,
+      lng: 78.4738,
+    },
+  },
+  {
+    id: 'r2',
+    name: 'Fire Unit Bravo-2',
+    type: 'Fire & Rescue',
+    location: 'Kondapur, Hyderabad',
+    status: 'Busy',
+    assignedIncidentId: 'ER-2042',
+    coords: {
+      lat: 17.4697,
+      lng: 78.3728,
+    },
+  },
+  {
+    id: 'r3',
+    name: 'Urban Rescue Gamma-3',
+    type: 'Urban Rescue',
+    location: 'Begumpet, Hyderabad',
+    status: 'Available',
+    assignedIncidentId: null,
+    coords: {
+      lat: 17.4447,
+      lng: 78.4666,
+    },
+  },
+  {
+    id: 'r4',
+    name: 'Traffic Delta-4',
+    type: 'Traffic Response',
+    location: 'Gachibowli, Hyderabad',
+    status: 'Available',
+    assignedIncidentId: null,
+    coords: {
+      lat: 17.4401,
+      lng: 78.3489,
+    },
+  },
+  {
+    id: 'r5',
+    name: 'Medic Alpha-5',
+    type: 'Medical Response',
+    location: 'Hitech City, Hyderabad',
+    status: 'Offline',
+    assignedIncidentId: null,
+    coords: {
+      lat: 17.4483,
+      lng: 78.3915,
+    },
+  },
 ];
-
 function buildTimeline(reachedCount: number): Incident['timeline'] {
   const now = Date.now();
   const stages: TimelineStage[] = ['Reported', 'AI Analyzed', 'Responder Alerted', 'Responder Assigned', 'Responding', 'Resolved'];

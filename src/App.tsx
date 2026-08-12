@@ -357,7 +357,12 @@ function handleSOS() {
           />
         );
       case 'incidents':
-        return detailIncident ? (
+  if (!adminSession) {
+    setView('admin_login');
+    return null;
+  }
+
+  return detailIncident ? (
           <IncidentDetailPage
             incident={detailIncident}
             responders={store.responders}

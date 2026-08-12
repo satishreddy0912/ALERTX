@@ -124,8 +124,8 @@ export interface Responder {
   location: string;
   status: ResponderStatus;
   assignedIncidentId: string | null;
+  coords: { lat: number; lng: number };
 }
-
 export interface ResponderAccount {
   id: string;
   email: string;
