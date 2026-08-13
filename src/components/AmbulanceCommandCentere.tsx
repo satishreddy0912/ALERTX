@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Ambulance,
   Activity,
+  Ambulance,
+  Building2,
   CheckCircle2,
+  Flame,
   LocateFixed,
   MapPin,
   Navigation,
   Radio,
+  Shield,
   Siren,
   Timer,
   UserRound,
+  UsersRound,
   Zap,
 } from 'lucide-react';
 
@@ -67,6 +71,41 @@ const INITIAL_AMBULANCES: AmbulanceUnit[] = [
     phone: '+91 90000 00003',
   },
 ];
+
+const RESPONSE_TEAMS = [
+  {
+    id: 'POL-01',
+    name: 'Hyderabad Police',
+    type: 'POLICE',
+    icon: Shield,
+    status: 'READY',
+    eta: 4,
+  },
+  {
+    id: 'FIRE-01',
+    name: 'Fire & Rescue Unit',
+    type: 'FIRE',
+    icon: Flame,
+    status: 'READY',
+    eta: 6,
+  },
+  {
+    id: 'RES-01',
+    name: 'Special Rescue Team',
+    type: 'RESCUE',
+    icon: UsersRound,
+    status: 'READY',
+    eta: 8,
+  },
+  {
+    id: 'HOSP-01',
+    name: 'Emergency Hospital',
+    type: 'HOSPITAL',
+    icon: Building2,
+    status: 'READY',
+    eta: 5,
+  },
+] as const;
 
 const VICTIM = {
   lat: 17.433,
@@ -152,11 +191,13 @@ function getStatusColor(
 export default function AmbulanceCommandCenter({
   incidents,
 }: Props) {
-  const [ambulances, setAmbulances] = useState<
-    AmbulanceUnit[]
-  >(INITIAL_AMBULANCES);
+  const [ambulances, setAmbulances] =
+    useState<AmbulanceUnit[]>(
+      INITIAL_AMBULANCES,
+    );
 
-  const [tracking, setTracking] = useState(false);
+  const [tracking, setTracking] =
+    useState(false);
 
   const [
     selectedAmbulanceId,
@@ -165,6 +206,9 @@ export default function AmbulanceCommandCenter({
 
   const [trackingStep, setTrackingStep] =
     useState(0);
+
+  const [dispatchedTeams, setDispatchedTeams] =
+    useState<string[]>([]);
 
   const ambulanceDistances = useMemo(() => {
     return ambulances
@@ -193,162 +237,6 @@ export default function AmbulanceCommandCenter({
         selectedAmbulanceId,
     ) ?? nearestAmbulance;
 
-  useEffect(() => {
-    if (!nearestAmbulance) {
-      return;
-    }
-
-    setSelectedAmbulanceId((currentId) => {
-      const exists = ambulances.some(
-        (ambulance) =>
-          ambulance.id === currentId,
-      );
-
-      if (exists) {
-        return currentId;
-      }
-
-      return nearestAmbulance.id;
-    });
-  }, [nearestAmbulance, ambulances]);
-
-  useEffect(() => {
-    if (!tracking) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setTrackingStep((previous) => {
-        if (previous >= 4) {
-          setTracking(false);
-          return 4;
-        }
-
-        return previous + 1;
-      });
-    }, 3000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [tracking]);
-
-  useEffect(() => {
-    if (!tracking) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setAmbulances((current) =>
-        current.map((ambulance) => {
-          if (
-            ambulance.id !==
-            selectedAmbulanceId
-          ) {
-            return ambulance;
-          }
-
-          if (trackingStep >= 4) {
-            return {
-              ...ambulance,
-              lat: VICTIM.lat,
-              lng: VICTIM.lng,
-              status: 'ARRIVED',
-              speed: 0,
-              eta: 0,
-            };
-          }
-
-          const latDifference =
-            VICTIM.lat - ambulance.lat;
-
-          const lngDifference =
-            VICTIM.lng - ambulance.lng;
-
-          const newLat =
-            ambulance.lat +
-            latDifference * 0.12;
-
-          const newLng =
-            ambulance.lng +
-            lngDifference * 0.12;
-
-          const newDistance =
-            calculateDistance(
-              newLat,
-              newLng,
-              VICTIM.lat,
-              VICTIM.lng,
-            );
-
-          let status:
-            AmbulanceUnit['status'];
-
-          if (trackingStep === 0) {
-            status = 'ASSIGNED';
-          } else if (trackingStep === 1) {
-            status = 'DISPATCHED';
-          } else {
-            status = 'EN_ROUTE';
-          }
-
-          return {
-            ...ambulance,
-            lat: newLat,
-            lng: newLng,
-            status,
-            speed:
-              trackingStep >= 1 ? 42 : 0,
-            eta:
-              trackingStep >= 3
-                ? 1
-                : calculateETA(
-                    newDistance,
-                  ),
-          };
-        }),
-      );
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [
-    tracking,
-    trackingStep,
-    selectedAmbulanceId,
-  ]);
-
-  const dispatchNearestAmbulance = () => {
-    if (!nearestAmbulance) {
-      return;
-    }
-
-    setSelectedAmbulanceId(
-      nearestAmbulance.id,
-    );
-
-    setTrackingStep(0);
-
-    setAmbulances((current) =>
-      current.map((ambulance) =>
-        ambulance.id ===
-        nearestAmbulance.id
-          ? {
-              ...ambulance,
-              status: 'ASSIGNED',
-              speed: 0,
-              eta: calculateETA(
-                nearestAmbulance.distance,
-              ),
-            }
-          : ambulance,
-      ),
-    );
-
-    setTracking(true);
-  };
-
   const activeIncident = useMemo(() => {
     return [...incidents]
       .filter(
@@ -361,6 +249,180 @@ export default function AmbulanceCommandCenter({
           b.priority - a.priority,
       )[0];
   }, [incidents]);
+
+  useEffect(() => {
+    if (!nearestAmbulance) {
+      return;
+    }
+
+    setSelectedAmbulanceId(
+      (currentId) => {
+        const exists = ambulances.some(
+          (ambulance) =>
+            ambulance.id === currentId,
+        );
+
+        return exists
+          ? currentId
+          : nearestAmbulance.id;
+      },
+    );
+  }, [nearestAmbulance, ambulances]);
+
+  useEffect(() => {
+    if (!tracking) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setTrackingStep(
+        (previous) => {
+          if (previous >= 4) {
+            setTracking(false);
+            return 4;
+          }
+
+          return previous + 1;
+        },
+      );
+    }, 3000);
+
+    return () =>
+      window.clearInterval(timer);
+  }, [tracking]);
+
+  useEffect(() => {
+    if (!tracking) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setAmbulances(
+        (current) =>
+          current.map((ambulance) => {
+            if (
+              ambulance.id !==
+              selectedAmbulanceId
+            ) {
+              return ambulance;
+            }
+
+            if (trackingStep >= 4) {
+              return {
+                ...ambulance,
+                lat: VICTIM.lat,
+                lng: VICTIM.lng,
+                status: 'ARRIVED',
+                speed: 0,
+                eta: 0,
+              };
+            }
+
+            const latDifference =
+              VICTIM.lat -
+              ambulance.lat;
+
+            const lngDifference =
+              VICTIM.lng -
+              ambulance.lng;
+
+            const newLat =
+              ambulance.lat +
+              latDifference * 0.12;
+
+            const newLng =
+              ambulance.lng +
+              lngDifference * 0.12;
+
+            const newDistance =
+              calculateDistance(
+                newLat,
+                newLng,
+                VICTIM.lat,
+                VICTIM.lng,
+              );
+
+            let status: AmbulanceUnit['status'];
+
+            if (trackingStep === 0) {
+              status = 'ASSIGNED';
+            } else if (
+              trackingStep === 1
+            ) {
+              status = 'DISPATCHED';
+            } else {
+              status = 'EN_ROUTE';
+            }
+
+            return {
+              ...ambulance,
+              lat: newLat,
+              lng: newLng,
+              status,
+              speed:
+                trackingStep >= 1
+                  ? 42
+                  : 0,
+              eta:
+                trackingStep >= 3
+                  ? 1
+                  : calculateETA(
+                      newDistance,
+                    ),
+            };
+          }),
+      );
+    }, 1000);
+
+    return () =>
+      window.clearInterval(timer);
+  }, [
+    tracking,
+    trackingStep,
+    selectedAmbulanceId,
+  ]);
+
+  const dispatchNearestAmbulance =
+    () => {
+      if (!nearestAmbulance) {
+        return;
+      }
+
+      setSelectedAmbulanceId(
+        nearestAmbulance.id,
+      );
+
+      setTrackingStep(0);
+
+      setAmbulances(
+        (current) =>
+          current.map((ambulance) =>
+            ambulance.id ===
+            nearestAmbulance.id
+              ? {
+                  ...ambulance,
+                  status: 'ASSIGNED',
+                  speed: 0,
+                  eta: calculateETA(
+                    nearestAmbulance.distance,
+                  ),
+                }
+              : ambulance,
+          ),
+      );
+
+      setTracking(true);
+    };
+
+  const dispatchTeam = (
+    teamId: string,
+  ) => {
+    setDispatchedTeams((current) =>
+      current.includes(teamId)
+        ? current
+        : [...current, teamId],
+    );
+  };
 
   const currentDistance =
     selectedAmbulance
@@ -380,7 +442,7 @@ export default function AmbulanceCommandCenter({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emergency-600/20">
-              <Ambulance className="h-5 w-5 text-emergency-400" />
+              <Siren className="h-5 w-5 text-emergency-400" />
             </div>
 
             <div>
@@ -389,8 +451,7 @@ export default function AmbulanceCommandCenter({
               </h2>
 
               <p className="text-xs text-secondary-400">
-                Live Emergency Response &
-                Ambulance Tracking
+                Multi-Agency Emergency Response
               </p>
             </div>
           </div>
@@ -402,6 +463,92 @@ export default function AmbulanceCommandCenter({
               Live System
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* RESPONSE TEAMS */}
+
+      <div className="border-b border-navy-700 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white">
+              Multi-Agency Response
+            </h3>
+
+            <p className="text-[10px] text-secondary-400">
+              Coordinate all emergency services
+            </p>
+          </div>
+
+          <Radio className="h-4 w-4 text-cyan-400" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {RESPONSE_TEAMS.map(
+            (team) => {
+              const Icon = team.icon;
+              const dispatched =
+                dispatchedTeams.includes(
+                  team.id,
+                );
+
+              return (
+                <div
+                  key={team.id}
+                  className={`rounded-xl border p-3 transition ${
+                    dispatched
+                      ? 'border-emerald-500/40 bg-emerald-500/5'
+                      : 'border-navy-700 bg-navy-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-navy-900">
+                      <Icon className="h-5 w-5 text-secondary-300" />
+                    </div>
+
+                    <span
+                      className={`text-[8px] font-bold uppercase ${
+                        dispatched
+                          ? 'text-emerald-400'
+                          : 'text-cyan-400'
+                      }`}
+                    >
+                      {dispatched
+                        ? 'DISPATCHED'
+                        : team.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-xs font-bold text-white">
+                    {team.name}
+                  </div>
+
+                  <div className="mt-1 text-[9px] text-secondary-400">
+                    ETA {team.eta} min
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      dispatchTeam(
+                        team.id,
+                      )
+                    }
+                    disabled={dispatched}
+                    className={`mt-2 w-full rounded-md px-2 py-1.5 text-[9px] font-bold ${
+                      dispatched
+                        ? 'cursor-default bg-emerald-500/10 text-emerald-400'
+                        : 'bg-navy-700 text-white hover:bg-navy-600'
+                    }`}
+                  >
+                    {dispatched
+                      ? 'ACTIVE'
+                      : 'DISPATCH'}
+                  </button>
+                </div>
+              );
+            },
+          )}
         </div>
       </div>
 
@@ -455,7 +602,7 @@ export default function AmbulanceCommandCenter({
 
           <div className="absolute left-[15%] top-[30%] h-[2px] w-[70%] -rotate-[25deg] bg-slate-700/70" />
 
-          {/* VICTIM */}
+          {/* INCIDENT */}
 
           <div className="absolute left-[52%] top-[51%] z-20 -translate-x-1/2 -translate-y-1/2">
             <div className="relative">
@@ -554,7 +701,7 @@ export default function AmbulanceCommandCenter({
 
           <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap gap-2">
             <MapLegend
-              label="Victim"
+              label="Emergency"
               className="bg-emergency-600"
             >
               <MapPin className="h-3 w-3 text-white" />
@@ -568,10 +715,17 @@ export default function AmbulanceCommandCenter({
             </MapLegend>
 
             <MapLegend
-              label="Nearest"
-              className="bg-navy-800"
+              label="Police"
+              className="bg-blue-600"
             >
-              <LocateFixed className="h-3 w-3 text-emerald-400" />
+              <Shield className="h-3 w-3 text-white" />
+            </MapLegend>
+
+            <MapLegend
+              label="Fire"
+              className="bg-orange-600"
+            >
+              <Flame className="h-3 w-3 text-white" />
             </MapLegend>
           </div>
         </div>
@@ -653,7 +807,7 @@ export default function AmbulanceCommandCenter({
               <div className="mb-3 rounded-lg border border-navy-700 bg-navy-900 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-secondary-400">
-                    Highest Priority Incident
+                    Highest Priority
                   </span>
 
                   <span className="font-mono text-xs font-bold text-emergency-400">
@@ -673,7 +827,6 @@ export default function AmbulanceCommandCenter({
             ) : (
               <div className="mb-3 rounded-lg border border-navy-700 bg-navy-900 p-3 text-xs text-secondary-400">
                 No active incident selected.
-                Demo location is ready.
               </div>
             )}
 
@@ -823,12 +976,12 @@ export default function AmbulanceCommandCenter({
 
               <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-secondary-400">
                 {activeIncident
-                  ? `${activeIncident.type} detected. ${
+                  ? `${activeIncident.type} detected at ${
                       activeIncident.location ||
-                      'Emergency location identified'
-                    }. Nearest ambulance ${
+                      'emergency location'
+                    }. ${
                       nearestAmbulance?.id ||
-                      'available unit'
+                      'Nearest ambulance'
                     } is ${
                       nearestAmbulance
                         ? nearestAmbulance.distance.toFixed(
@@ -839,10 +992,10 @@ export default function AmbulanceCommandCenter({
                       tracking
                         ? 'Ambulance dispatched and live tracking is active.'
                         : trackingStep >= 4
-                          ? 'Ambulance has arrived at the emergency location.'
-                          : 'Awaiting automatic dispatch.'
+                          ? 'Ambulance has arrived.'
+                          : 'Awaiting dispatch.'
                     }`
-                  : 'Emergency monitoring active. Ambulance network ready for automatic dispatch.'}
+                  : 'Emergency monitoring active. Multi-agency response network ready.'}
               </p>
             </div>
           </div>

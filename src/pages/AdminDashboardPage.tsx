@@ -1,37 +1,34 @@
-import {
-  useMemo,
-  useState,
-} from 'react';
+import { useMemo, useState } from 'react';
 
 import {
-  ShieldCheck,
-  Siren,
-  MapPin,
+  Activity,
+  AlertOctagon,
+  AlertTriangle,
+  Ambulance,
+  Ban,
+  Building,
+  Car,
+  Check,
   Clock,
   Eye,
-  Check,
-  AlertTriangle,
-  Ban,
-  Activity,
-  Ambulance,
-  AlertOctagon,
-  X,
-  Car,
   Flame,
-  Building,
+  MapPin,
+  ShieldCheck,
+  Siren,
+  X,
 } from 'lucide-react';
 
 import type {
   Incident,
-  Responder,
   IncidentSource,
+  Responder,
 } from '@/types';
 
 import {
+  CredibilityBadge,
+  PriorityScore,
   SeverityBadge,
   StatusBadge,
-  PriorityScore,
-  CredibilityBadge,
 } from '@/components/Badges';
 
 import { formatRelative } from '@/lib/format';
@@ -104,25 +101,24 @@ export function AdminDashboardPage({
   const [assigningId, setAssigningId] =
     useState<string | null>(null);
 
-  /*
-   * Hide escalated incidents.
-   */
-  const visibleIncidents = useMemo(() => {
-    return incidents.filter(
-      (incident) =>
-        incident.status !== 'ESCALATED',
-    );
-  }, [incidents]);
+  const visibleIncidents = useMemo(
+    () =>
+      incidents.filter(
+        (incident) =>
+          incident.status !==
+          'ESCALATED',
+      ),
+    [incidents],
+  );
 
-  /*
-   * Dashboard statistics.
-   */
   const stats = useMemo(() => {
     const active =
       visibleIncidents.filter(
         (incident) =>
-          incident.status !== 'RESOLVED' &&
-          incident.status !== 'SUSPICIOUS',
+          incident.status !==
+            'RESOLVED' &&
+          incident.status !==
+            'SUSPICIOUS',
       );
 
     return {
@@ -130,7 +126,8 @@ export function AdminDashboardPage({
 
       critical: active.filter(
         (incident) =>
-          incident.severity === 'CRITICAL',
+          incident.severity ===
+          'CRITICAL',
       ).length,
 
       high: active.filter(
@@ -147,19 +144,22 @@ export function AdminDashboardPage({
 
       responding: active.filter(
         (incident) =>
-          incident.status === 'RESPONDING',
+          incident.status ===
+          'RESPONDING',
       ).length,
 
       resolvedToday:
         visibleIncidents.filter(
           (incident) =>
-            incident.status === 'RESOLVED',
+            incident.status ===
+            'RESOLVED',
         ).length,
 
       availableResponders:
         responders.filter(
           (responder) =>
-            responder.status === 'Available',
+            responder.status ===
+            'Available',
         ).length,
     };
   }, [
@@ -167,66 +167,64 @@ export function AdminDashboardPage({
     responders,
   ]);
 
-  /*
-   * Sort incidents by priority.
-   */
-  const sortedIncidents = useMemo(() => {
-    const weight = (
-      incident: Incident,
-    ) => {
-      let value =
-        incident.priority;
+  const sortedIncidents = useMemo(
+    () => {
+      const weight = (
+        incident: Incident,
+      ) => {
+        let value =
+          incident.priority;
 
-      if (incident.urgent) {
-        value += 150;
-      }
+        if (incident.urgent) {
+          value += 150;
+        }
 
-      if (
-        incident.status ===
-        'VERIFICATION_REQUIRED'
-      ) {
-        value += 30;
-      }
+        if (
+          incident.status ===
+          'VERIFICATION_REQUIRED'
+        ) {
+          value += 30;
+        }
 
-      if (
-        incident.status === 'NEW'
-      ) {
-        value += 20;
-      }
+        if (
+          incident.status === 'NEW'
+        ) {
+          value += 20;
+        }
 
-      if (
-        incident.status === 'RESOLVED' ||
-        incident.status === 'SUSPICIOUS'
-      ) {
-        value -= 100;
-      }
+        if (
+          incident.status ===
+            'RESOLVED' ||
+          incident.status ===
+            'SUSPICIOUS'
+        ) {
+          value -= 100;
+        }
 
-      return value;
-    };
+        return value;
+      };
 
-    return [...visibleIncidents].sort(
-      (a, b) =>
-        weight(b) - weight(a),
-    );
-  }, [visibleIncidents]);
+      return [...visibleIncidents].sort(
+        (a, b) =>
+          weight(b) - weight(a),
+      );
+    },
+    [visibleIncidents],
+  );
 
-  /*
-   * Available responders.
-   */
   const availableResponders =
     responders.filter(
       (responder) =>
-        responder.status === 'Available',
+        responder.status ===
+        'Available',
     );
 
-  /*
-   * Incident currently being assigned.
-   */
   const assigningIncident =
     assigningId
       ? visibleIncidents.find(
           (incident) =>
-            incident.id === assigningId,
+            incident.id ===
+            assigningId,
         )
       : null;
 
@@ -244,7 +242,8 @@ export function AdminDashboardPage({
         <p className="mt-1 text-sm text-secondary-400">
           Admin coordination view —
           incidents, responders,
-          ambulances and nearby hospitals.
+          ambulance, police, fire,
+          rescue and hospitals.
         </p>
 
         {adminSession && (
@@ -264,7 +263,7 @@ export function AdminDashboardPage({
         )}
       </div>
 
-      {/* STATS */}
+      {/* STATISTICS */}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         <StatCard
@@ -318,13 +317,13 @@ export function AdminDashboardPage({
         />
       </div>
 
-      {/* AMBULANCE COMMAND CENTER */}
+      {/* MULTI-AGENCY COMMAND CENTER */}
 
       <AmbulanceCommandCenter
         incidents={visibleIncidents}
       />
 
-      {/* HOSPITAL MAP */}
+      {/* HOSPITALS */}
 
       <HospitalMap
         incidents={visibleIncidents}
@@ -337,9 +336,11 @@ export function AdminDashboardPage({
           Incoming Incidents
         </h2>
 
-        {sortedIncidents.length === 0 ? (
+        {sortedIncidents.length ===
+        0 ? (
           <div className="card p-8 text-center text-sm text-secondary-400">
-            No incidents in the system.
+            No incidents in the
+            system.
           </div>
         ) : (
           <div className="space-y-3">
@@ -394,8 +395,9 @@ export function AdminDashboardPage({
               {availableResponders.length ===
               0 ? (
                 <p className="text-center text-sm text-secondary-400">
-                  No available responders.
-                  All units are busy or
+                  No available
+                  responders. All
+                  units are busy or
                   offline.
                 </p>
               ) : (
@@ -415,7 +417,9 @@ export function AdminDashboardPage({
 
                     return (
                       <button
-                        key={responder.id}
+                        key={
+                          responder.id
+                        }
                         type="button"
                         onClick={() => {
                           onAssign(
@@ -500,15 +504,10 @@ function AdminIncidentCard({
   onClose,
 }: {
   incident: Incident;
-
   onView: (id: string) => void;
-
   onVerify: (id: string) => void;
-
   onAssign: (id: string) => void;
-
   onEscalate: (id: string) => void;
-
   onClose: (id: string) => void;
 }) {
   const SourceIcon =
@@ -525,7 +524,8 @@ function AdminIncidentCard({
     incident.status === 'RESOLVED';
 
   const isSuspicious =
-    incident.status === 'SUSPICIOUS';
+    incident.status ===
+    'SUSPICIOUS';
 
   const canVerify =
     incident.status === 'NEW' ||
@@ -571,7 +571,7 @@ function AdminIncidentCard({
         )}
 
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
-        {/* THUMBNAIL */}
+        {/* IMAGE */}
 
         <div className="shrink-0 sm:w-24">
           {incident.imageData ? (
@@ -600,7 +600,9 @@ function AdminIncidentCard({
             </span>
 
             <SeverityBadge
-              severity={incident.severity}
+              severity={
+                incident.severity
+              }
             />
 
             <StatusBadge
@@ -658,11 +660,13 @@ function AdminIncidentCard({
 
                 <CredibilityBadge
                   level={
-                    incident.credibility
+                    incident
+                      .credibility
                       .level
                   }
                   score={
-                    incident.credibility
+                    incident
+                      .credibility
                       .score
                   }
                 />
@@ -704,7 +708,6 @@ function AdminIncidentCard({
               className="btn-ghost px-3 py-2 text-xs"
             >
               <Eye className="h-3.5 w-3.5" />
-
               View
             </button>
 
@@ -717,7 +720,6 @@ function AdminIncidentCard({
                 className="btn bg-emerald-600 px-3 py-2 text-xs text-white hover:bg-emerald-700"
               >
                 <Check className="h-3.5 w-3.5" />
-
                 Verify
               </button>
             )}
@@ -731,7 +733,6 @@ function AdminIncidentCard({
                 className="btn-primary px-3 py-2 text-xs"
               >
                 <Ambulance className="h-3.5 w-3.5" />
-
                 Assign
               </button>
             )}
@@ -745,7 +746,6 @@ function AdminIncidentCard({
                 className="btn bg-amber-600 px-3 py-2 text-xs text-white hover:bg-amber-700"
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
-
                 Escalate
               </button>
             )}
@@ -759,7 +759,6 @@ function AdminIncidentCard({
                 className="btn bg-slate-700 px-3 py-2 text-xs text-secondary-400 hover:bg-slate-600"
               >
                 <Ban className="h-3.5 w-3.5" />
-
                 Close
               </button>
             )}
