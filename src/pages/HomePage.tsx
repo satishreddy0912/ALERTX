@@ -1,14 +1,12 @@
-import { Siren, Radar, LayoutDashboard, ShieldAlert, Activity, Zap, Brain, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Siren, LayoutDashboard, Zap, Brain, ArrowRight} from 'lucide-react';
 import type { ViewKey } from '@/types';
 
 interface Props {
   onNavigate: (v: ViewKey) => void;
-  activeCount: number;
-  resolvedCount: number;
-  responderCount: number;
+  
 }
 
-export function HomePage({ onNavigate, activeCount, resolvedCount, responderCount }: Props) {
+export function HomePage({ onNavigate  }: Props) {
   return (
     <div className="space-y-8">
       {/* Hero */}
@@ -29,32 +27,32 @@ export function HomePage({ onNavigate, activeCount, resolvedCount, responderCoun
             <button onClick={() => onNavigate('report')} className="btn-danger px-5 py-3 text-sm sm:text-base">
               <Siren className="h-5 w-5" /> Report an Emergency
             </button>
-            <button onClick={() => onNavigate('simulator')} className="btn-ghost px-5 py-3 text-sm sm:text-base">
-              <Radar className="h-5 w-5" /> Detection Simulator
-            </button>
+            
           </div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Active Incidents" value={activeCount} icon={Activity} color="text-secondary-400" />
-        <StatCard label="Resolved" value={resolvedCount} icon={CheckCircle2} color="text-emerald-400" />
-        <StatCard label="Responders" value={responderCount} icon={ShieldAlert} color="text-sky-400" />
-        <StatCard label="AI Analysis" value="Live" icon={Brain} color="text-indigo-400" />
-      </section>
+      {/* AI Status */}
+<section className="grid grid-cols-1 gap-3 sm:gap-4">
+  <StatCard
+    label="AI Analysis"
+    value="Live"
+    icon={Brain}
+    color="text-indigo-400"
+  />
+</section>
 
       {/* Flow */}
       <section>
         <h2 className="mb-4 text-lg font-bold text-white">How it works</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <FlowCard
-            step="01"
-            title="Report / Detect"
-            desc="Citizens report emergencies with photo and location, or trigger the detection simulator for demos."
-            icon={Siren}
-            onClick={() => onNavigate('report')}
-          />
+  step="01"
+  title="Emergency Reporting"
+  desc="Citizens can quickly report an emergency with location and supporting information."
+  icon={Siren}
+  onClick={() => onNavigate('report')}
+/>
           <FlowCard
             step="02"
             title="AI Analysis"
@@ -87,11 +85,21 @@ export function HomePage({ onNavigate, activeCount, resolvedCount, responderCoun
           This is a prototype demonstrating how AI can assist emergency reporting and responder coordination. It is not connected to real emergency services.
         </p>
       </section>
+
+      {/* Admin Access */}
+      <footer className="flex justify-center pb-4">
+        <button
+          onClick={() => onNavigate('dashboard')}
+          className="text-xs font-medium text-secondary-400 transition hover:text-white"
+        >
+          Admin Centre
+        </button>
+      </footer>
     </div>
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: typeof Activity; color: string }) {
+function StatCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: typeof Brain; color: string }) {
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">

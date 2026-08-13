@@ -31,7 +31,11 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 
-import type { Incident, Responder, IncidentSource } from '@/types';
+import type {
+  Incident,
+  Responder,
+  IncidentSource,
+} from '@/types';
 
 import {
   SeverityBadge,
@@ -40,7 +44,10 @@ import {
 } from '@/components/Badges';
 
 import { AuditTrail } from '@/components/Timeline';
-import { formatTime, formatRelative } from '@/lib/format';
+import {
+  formatTime,
+  formatRelative,
+} from '@/lib/format';
 
 interface Props {
   incident: Incident | undefined;
@@ -131,7 +138,10 @@ const hospitalIcon = L.divIcon({
    SOURCE LABELS
    ========================================================= */
 
-const SOURCE_LABELS: Record<IncidentSource, string> = {
+const SOURCE_LABELS: Record<
+  IncidentSource,
+  string
+> = {
   user_report: 'USER REPORTED',
   mobile_sensor: 'MOBILE SENSOR',
   simulator: 'SIMULATOR',
@@ -152,7 +162,8 @@ export function AdminIncidentDetailPage({
   onMarkSuspicious,
   onClose,
 }: Props) {
-  const [showAssign, setShowAssign] = useState(false);
+  const [showAssign, setShowAssign] =
+    useState(false);
 
   /* -------------------------------------------------------
      INCIDENT NOT FOUND
@@ -182,12 +193,15 @@ export function AdminIncidentDetailPage({
   const assignedResponder =
     responders.find(
       (responder) =>
-        responder.id === incident.assignedResponderId
+        responder.id ===
+        incident.assignedResponderId
     ) || null;
 
-  const availableResponders = responders.filter(
-    (responder) => responder.status === 'Available'
-  );
+  const availableResponders =
+    responders.filter(
+      (responder) =>
+        responder.status === 'Available'
+    );
 
   /* -------------------------------------------------------
      ACTION PERMISSIONS
@@ -195,7 +209,8 @@ export function AdminIncidentDetailPage({
 
   const canVerify =
     incident.status === 'NEW' ||
-    incident.status === 'VERIFICATION_REQUIRED';
+    incident.status ===
+      'VERIFICATION_REQUIRED';
 
   const canAssign =
     incident.status === 'VERIFIED' ||
@@ -219,25 +234,47 @@ export function AdminIncidentDetailPage({
      MAP COORDINATES
      ------------------------------------------------------- */
 
-  const incidentLat = incident.coords?.lat ?? 17.385;
-  const incidentLng = incident.coords?.lng ?? 78.4867;
+  const incidentLat =
+    incident.coords?.lat ?? 17.385;
+
+  const incidentLng =
+    incident.coords?.lng ?? 78.4867;
 
   /*
-   * Your current Responder interface does not contain coords.
-   * Therefore we give available responders demo positions
-   * around the incident instead of accessing responder.coords.
+   * Responder does not necessarily contain coords.
+   * Therefore demo positions are generated around
+   * the incident location.
    */
 
-  const getResponderPosition = (index: number): [number, number] => {
+  const getResponderPosition = (
+    index: number
+  ): [number, number] => {
     const positions: [number, number][] = [
-      [incidentLat + 0.008, incidentLng + 0.010],
-      [incidentLat - 0.006, incidentLng + 0.012],
-      [incidentLat + 0.010, incidentLng - 0.007],
-      [incidentLat - 0.009, incidentLng - 0.006],
-      [incidentLat + 0.004, incidentLng - 0.012],
+      [
+        incidentLat + 0.008,
+        incidentLng + 0.010,
+      ],
+      [
+        incidentLat - 0.006,
+        incidentLng + 0.012,
+      ],
+      [
+        incidentLat + 0.010,
+        incidentLng - 0.007,
+      ],
+      [
+        incidentLat - 0.009,
+        incidentLng - 0.006,
+      ],
+      [
+        incidentLat + 0.004,
+        incidentLng - 0.012,
+      ],
     ];
 
-    return positions[index % positions.length];
+    return positions[
+      index % positions.length
+    ];
   };
 
   return (
@@ -277,7 +314,9 @@ export function AdminIncidentDetailPage({
 
           </div>
 
-          <StatusBadge status={incident.status} />
+          <StatusBadge
+            status={incident.status}
+          />
 
         </div>
 
@@ -289,7 +328,9 @@ export function AdminIncidentDetailPage({
               {incident.type}
             </h1>
 
-            <SeverityBadge severity={incident.severity} />
+            <SeverityBadge
+              severity={incident.severity}
+            />
 
             {incident.urgent && (
               <span className="badge border border-emergency-500/50 bg-emergency-600/25 text-emergency-300">
@@ -318,20 +359,25 @@ export function AdminIncidentDetailPage({
 
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              {formatRelative(incident.createdAt)}
+              {formatRelative(
+                incident.createdAt
+              )}
             </span>
 
             <span className="flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5" />
 
               <span className="truncate">
-                {incident.location || 'Location unavailable'}
+                {incident.location ||
+                  'Location unavailable'}
               </span>
             </span>
 
             <span className="flex items-center gap-1">
               Priority
-              <PriorityScore score={incident.priority} />
+              <PriorityScore
+                score={incident.priority}
+              />
             </span>
 
           </div>
@@ -369,13 +415,19 @@ export function AdminIncidentDetailPage({
           <InfoRow
             icon={User}
             label="Name"
-            value={incident.name || 'Anonymous'}
+            value={
+              incident.name ||
+              'Anonymous'
+            }
           />
 
           <InfoRow
             icon={Phone}
             label="Phone"
-            value={incident.phone || 'Not provided'}
+            value={
+              incident.phone ||
+              'Not provided'
+            }
           />
 
         </div>
@@ -394,7 +446,8 @@ export function AdminIncidentDetailPage({
         </h2>
 
         <p className="text-sm leading-relaxed text-secondary-400">
-          {incident.description || 'No description provided.'}
+          {incident.description ||
+            'No description provided.'}
         </p>
 
       </div>
@@ -434,12 +487,16 @@ export function AdminIncidentDetailPage({
 
           <Info
             label="Detection"
-            value={incident.emergencyDetection}
+            value={
+              incident.emergencyDetection
+            }
           />
 
           <Info
             label="Recommended"
-            value={incident.recommendedResponse}
+            value={
+              incident.recommendedResponse
+            }
           />
 
         </div>
@@ -458,7 +515,8 @@ export function AdminIncidentDetailPage({
 
         </div>
 
-        {incident.sensorConfidence !== undefined && (
+        {incident.sensorConfidence !==
+          undefined && (
           <div className="mt-2 flex items-center gap-2 rounded-lg bg-navy-900 p-3 text-sm text-secondary-400">
 
             <Activity className="h-4 w-4 shrink-0" />
@@ -467,7 +525,8 @@ export function AdminIncidentDetailPage({
               Sensor confidence:{' '}
               <span className="font-mono font-semibold">
                 {Math.round(
-                  incident.sensorConfidence * 100
+                  incident.sensorConfidence *
+                    100
                 )}
                 %
               </span>
@@ -477,8 +536,8 @@ export function AdminIncidentDetailPage({
               {incident.sensorEventType?.replace(
                 'POSSIBLE_',
                 'Possible '
-              ) || 'Unknown event'}
-
+              ) ||
+                'Unknown event'}
             </span>
 
           </div>
@@ -501,12 +560,18 @@ export function AdminIncidentDetailPage({
 
           <Row
             label="Source"
-            value={SOURCE_LABELS[incident.source]}
+            value={
+              SOURCE_LABELS[
+                incident.source
+              ]
+            }
           />
 
           <Row
             label="Emergency Detection"
-            value={incident.emergencyDetection}
+            value={
+              incident.emergencyDetection
+            }
           />
 
           <Row
@@ -534,204 +599,287 @@ export function AdminIncidentDetailPage({
 
           <Row
             label="Recommended Response"
-            value={incident.recommendedResponse}
+            value={
+              incident.recommendedResponse
+            }
           />
 
         </div>
 
       </div>
 
-{/* Live Incident Command Center */}
-<div className="card overflow-hidden">
-  <div className="border-b border-navy-700 bg-gradient-to-r from-navy-900 to-navy-950 px-4 py-3 sm:px-5">
-    <div className="flex items-center justify-between">
-      <div>
-        <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-          <Navigation className="h-4 w-4 text-emergency-400" />
-          Live Incident Command Center
-        </h2>
+      {/* =====================================================
+          LIVE INCIDENT COMMAND CENTER
+          ===================================================== */}
 
-        <p className="mt-1 text-xs text-secondary-400">
-          Accident location and nearby emergency resources
-        </p>
-      </div>
+      <div className="card overflow-hidden">
 
-      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
-        LIVE
-      </span>
-    </div>
-  </div>
+        <div className="border-b border-navy-700 bg-gradient-to-r from-navy-900 to-navy-950 px-4 py-3 sm:px-5">
 
-  <div className="h-[420px] w-full">
-    <MapContainer
-      center={[
-        incident.coords?.lat ?? 17.385,
-        incident.coords?.lng ?? 78.4867,
-      ]}
-      zoom={14}
-      scrollWheelZoom={true}
-      className="h-full w-full"
-    >
-      <TileLayer
-        attribution="&copy; OpenStreetMap contributors"
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+          <div className="flex items-center justify-between">
 
-      {/* Accident location */}
-      <Marker
-        position={[
-          incident.coords?.lat ?? 17.385,
-          incident.coords?.lng ?? 78.4867,
-        ]}
-        icon={accidentIcon}
-      >
-        <Popup>
-          <strong>🚨 Accident Spot</strong>
-          <br />
-          {incident.location || 'Location unavailable'}
-        </Popup>
-      </Marker>
+            <div>
 
-      {/* Emergency radius */}
-      <Circle
-        center={[
-          incident.coords?.lat ?? 17.385,
-          incident.coords?.lng ?? 78.4867,
-        ]}
-        radius={1000}
-        pathOptions={{
-          color: '#ef4444',
-          fillColor: '#ef4444',
-          fillOpacity: 0.08,
-        }}
-      />
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
 
-      {/* Available responders */}
-      {responders
-        .filter((responder) => responder.status === 'Available')
-        .map((responder) => {
-          if (!incident.coords) return null;
+                <Navigation className="h-4 w-4 text-emergency-400" />
 
-          const distance = calculateDistance(
-            incident.coords.lat,
-            incident.coords.lng,
-            responder.coords.lat,
-            responder.coords.lng
-          );
+                Live Incident Command Center
 
-          const eta = Math.max(2, Math.round(distance * 3));
+              </h2>
 
-          return (
+              <p className="mt-1 text-xs text-secondary-400">
+                Accident location and nearby emergency resources
+              </p>
+
+            </div>
+
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+              LIVE
+            </span>
+
+          </div>
+
+        </div>
+
+        <div className="h-[420px] w-full">
+
+          <MapContainer
+            center={[
+              incidentLat,
+              incidentLng,
+            ]}
+            zoom={14}
+            scrollWheelZoom={true}
+            className="h-full w-full"
+          >
+
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+            {/* Accident location */}
+
             <Marker
-              key={responder.id}
               position={[
-                responder.coords.lat,
-                responder.coords.lng,
+                incidentLat,
+                incidentLng,
               ]}
-              icon={ambulanceIcon}
+              icon={accidentIcon}
             >
+
               <Popup>
-                <div className="min-w-[180px]">
-                  <div className="font-bold">
-                    🚑 {responder.name}
-                  </div>
 
-                  <div className="text-sm">
-                    {responder.type}
-                  </div>
+                <strong>
+                  🚨 Accident Spot
+                </strong>
 
-                  <div className="mt-1 text-sm">
-                    📍 {responder.location}
-                  </div>
+                <br />
 
-                  <div className="mt-1 text-sm">
-                    📏 {distance.toFixed(1)} km away
-                  </div>
+                {incident.location ||
+                  'Location unavailable'}
 
-                  <div className="text-sm">
-                    ⏱️ ETA: {eta} min
-                  </div>
-                </div>
               </Popup>
+
             </Marker>
-          );
-        })}
 
-      {/* Nearest hospital */}
-      <Marker
-        position={[
-          (incident.coords?.lat ?? 17.385) + 0.012,
-          (incident.coords?.lng ?? 78.4867) - 0.008,
-        ]}
-        icon={hospitalIcon}
-      >
-        <Popup>
-          <strong>🏥 Nearest Hospital</strong>
-          <br />
-          Approx. 3.4 km
-        </Popup>
-      </Marker>
+            {/* Emergency radius */}
 
-      {/* Accident → Hospital route */}
-      <Polyline
-        positions={[
-          [
-            incident.coords?.lat ?? 17.385,
-            incident.coords?.lng ?? 78.4867,
-          ],
-          [
-            (incident.coords?.lat ?? 17.385) + 0.012,
-            (incident.coords?.lng ?? 78.4867) - 0.008,
-          ],
-        ]}
-        pathOptions={{
-          color: '#10b981',
-          weight: 3,
-          dashArray: '8 8',
-        }}
-      />
-    </MapContainer>
-  </div>
+            <Circle
+              center={[
+                incidentLat,
+                incidentLng,
+              ]}
+              radius={1000}
+              pathOptions={{
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.08,
+              }}
+            />
 
-  {/* Map information */}
-  <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
-    <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
-      <div className="text-[9px] uppercase tracking-wider text-secondary-400">
-        Accident
-      </div>
-      <div className="mt-1 text-xs font-bold text-emergency-300">
-        ACTIVE
-      </div>
-    </div>
+            {/* Available responders */}
 
-    <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
-      <div className="text-[9px] uppercase tracking-wider text-secondary-400">
-        Hospital
-      </div>
-      <div className="mt-1 text-xs font-bold text-emerald-300">
-        3.4 km
-      </div>
-    </div>
+            {availableResponders.map(
+              (responder, index) => {
 
-    <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
-      <div className="text-[9px] uppercase tracking-wider text-secondary-400">
-        Responders
-      </div>
-      <div className="mt-1 text-xs font-bold text-sky-300">
-        {responders.filter((r) => r.status === 'Available').length} Available
-      </div>
-    </div>
+                const [
+                  responderLat,
+                  responderLng,
+                ] =
+                  getResponderPosition(
+                    index
+                  );
 
-    <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
-      <div className="text-[9px] uppercase tracking-wider text-secondary-400">
-        Status
+                const distance =
+                  calculateDistance(
+                    incidentLat,
+                    incidentLng,
+                    responderLat,
+                    responderLng
+                  );
+
+                const eta = Math.max(
+                  2,
+                  Math.round(
+                    distance * 3
+                  )
+                );
+
+                return (
+                  <Marker
+                    key={responder.id}
+                    position={[
+                      responderLat,
+                      responderLng,
+                    ]}
+                    icon={ambulanceIcon}
+                  >
+
+                    <Popup>
+
+                      <div className="min-w-[180px]">
+
+                        <div className="font-bold">
+                          🚑 {responder.name}
+                        </div>
+
+                        <div className="text-sm">
+                          {responder.type}
+                        </div>
+
+                        <div className="mt-1 text-sm">
+                          📍 {responder.location}
+                        </div>
+
+                        <div className="mt-1 text-sm">
+                          📏{' '}
+                          {distance.toFixed(
+                            1
+                          )}{' '}
+                          km away
+                        </div>
+
+                        <div className="text-sm">
+                          ⏱️ ETA: {eta} min
+                        </div>
+
+                      </div>
+
+                    </Popup>
+
+                  </Marker>
+                );
+              }
+            )}
+
+            {/* Nearest hospital */}
+
+            <Marker
+              position={[
+                incidentLat + 0.012,
+                incidentLng - 0.008,
+              ]}
+              icon={hospitalIcon}
+            >
+
+              <Popup>
+
+                <strong>
+                  🏥 Nearest Hospital
+                </strong>
+
+                <br />
+
+                Approx. 3.4 km
+
+              </Popup>
+
+            </Marker>
+
+            {/* Accident → Hospital route */}
+
+            <Polyline
+              positions={[
+                [
+                  incidentLat,
+                  incidentLng,
+                ],
+                [
+                  incidentLat + 0.012,
+                  incidentLng - 0.008,
+                ],
+              ]}
+              pathOptions={{
+                color: '#10b981',
+                weight: 3,
+                dashArray: '8 8',
+              }}
+            />
+
+          </MapContainer>
+
+        </div>
+
+        {/* Map information */}
+
+        <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
+
+          <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
+
+            <div className="text-[9px] uppercase tracking-wider text-secondary-400">
+              Accident
+            </div>
+
+            <div className="mt-1 text-xs font-bold text-emergency-300">
+              ACTIVE
+            </div>
+
+          </div>
+
+          <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
+
+            <div className="text-[9px] uppercase tracking-wider text-secondary-400">
+              Hospital
+            </div>
+
+            <div className="mt-1 text-xs font-bold text-emerald-300">
+              3.4 km
+            </div>
+
+          </div>
+
+          <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
+
+            <div className="text-[9px] uppercase tracking-wider text-secondary-400">
+              Responders
+            </div>
+
+            <div className="mt-1 text-xs font-bold text-sky-300">
+              {
+                availableResponders.length
+              }{' '}
+              Available
+            </div>
+
+          </div>
+
+          <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
+
+            <div className="text-[9px] uppercase tracking-wider text-secondary-400">
+              Status
+            </div>
+
+            <div className="mt-1 text-xs font-bold text-white">
+              LIVE
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
-      <div className="mt-1 text-xs font-bold text-white">
-        LIVE
-      </div>
-    </div>
-  </div>
-</div>
 
       {/* =====================================================
           ASSIGNED RESPONDER
@@ -769,17 +917,21 @@ export function AdminIncidentDetailPage({
 
             {incident.assignedByAdminId && (
               <div className="mt-1 text-xs text-secondary-400">
-                Assigned by {incident.assignedByAdminId}
+                Assigned by{' '}
+                {incident.assignedByAdminId}
                 {' · '}
-                {incident.assignedByAdminName || ''}
+                {incident.assignedByAdminName ||
+                  ''}
               </div>
             )}
 
             {incident.acceptedBy && (
               <div className="mt-1 text-xs text-emerald-400">
-                Accepted by {incident.acceptedBy}
+                Accepted by{' '}
+                {incident.acceptedBy}
                 {' · '}
-                {incident.acceptedByName || ''}
+                {incident.acceptedByName ||
+                  ''}
               </div>
             )}
 
@@ -809,7 +961,9 @@ export function AdminIncidentDetailPage({
 
         </h2>
 
-        <AuditTrail entries={incident.audit} />
+        <AuditTrail
+          entries={incident.audit}
+        />
 
       </div>
 
@@ -834,7 +988,11 @@ export function AdminIncidentDetailPage({
 
               {canVerify && (
                 <button
-                  onClick={() => onVerify(incident.id)}
+                  onClick={() =>
+                    onVerify(
+                      incident.id
+                    )
+                  }
                   className="btn w-full bg-emerald-600 py-3 text-sm text-white hover:bg-emerald-700"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -844,7 +1002,9 @@ export function AdminIncidentDetailPage({
 
               {canAssign && (
                 <button
-                  onClick={() => setShowAssign(true)}
+                  onClick={() =>
+                    setShowAssign(true)
+                  }
                   className="btn-primary w-full py-3 text-sm"
                 >
                   <Ambulance className="h-4 w-4" />
@@ -855,7 +1015,9 @@ export function AdminIncidentDetailPage({
               {canEscalate && (
                 <button
                   onClick={() =>
-                    onEscalate(incident.id)
+                    onEscalate(
+                      incident.id
+                    )
                   }
                   className="btn w-full bg-emergency-600 py-3 text-sm text-white hover:bg-emergency-700"
                 >
@@ -867,7 +1029,9 @@ export function AdminIncidentDetailPage({
               {canMarkSuspicious && (
                 <button
                   onClick={() =>
-                    onMarkSuspicious(incident.id)
+                    onMarkSuspicious(
+                      incident.id
+                    )
                   }
                   className="btn w-full bg-amber-600 py-3 text-sm text-white hover:bg-amber-700"
                 >
@@ -878,7 +1042,9 @@ export function AdminIncidentDetailPage({
 
               {canClose && (
                 <button
-                  onClick={() => onClose(incident.id)}
+                  onClick={() =>
+                    onClose(incident.id)
+                  }
                   className="btn w-full bg-slate-700 py-3 text-sm text-secondary-400 hover:bg-slate-600"
                 >
                   <X className="h-4 w-4" />
@@ -895,11 +1061,15 @@ export function AdminIncidentDetailPage({
           SUSPICIOUS STATUS
           ===================================================== */}
 
-      {incident.status === 'SUSPICIOUS' && (
+      {incident.status ===
+        'SUSPICIOUS' && (
+
         <div className="card p-4 text-center">
 
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm font-semibold text-amber-300">
+
             This incident has been marked suspicious.
+
           </div>
 
         </div>
@@ -909,11 +1079,15 @@ export function AdminIncidentDetailPage({
           RESOLVED STATUS
           ===================================================== */}
 
-      {incident.status === 'RESOLVED' && (
+      {incident.status ===
+        'RESOLVED' && (
+
         <div className="card p-4 text-center">
 
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-300">
+
             This incident has been resolved.
+
           </div>
 
         </div>
@@ -935,12 +1109,15 @@ export function AdminIncidentDetailPage({
 
                 <Ambulance className="h-4 w-4 text-secondary-400" />
 
-                Assign Responder to {incident.id}
+                Assign Responder to{' '}
+                {incident.id}
 
               </h3>
 
               <button
-                onClick={() => setShowAssign(false)}
+                onClick={() =>
+                  setShowAssign(false)
+                }
                 className="text-secondary-400 hover:text-white"
               >
                 <X className="h-4 w-4" />
@@ -950,7 +1127,8 @@ export function AdminIncidentDetailPage({
 
             <div className="space-y-2 p-4">
 
-              {availableResponders.length === 0 ? (
+              {availableResponders.length ===
+              0 ? (
 
                 <p className="text-center text-sm text-secondary-400">
                   No available responders.
@@ -958,63 +1136,70 @@ export function AdminIncidentDetailPage({
 
               ) : (
 
-                availableResponders.map((responder) => {
+                availableResponders.map(
+                  (responder) => {
 
-                  const distance = getDemoDistance(
-                    responder.id
-                  );
+                    const distance =
+                      getDemoDistance(
+                        responder.id
+                      );
 
-                  return (
-                    <button
-                      key={responder.id}
-                      onClick={() => {
-                        onAssign(
-                          incident.id,
-                          responder.id
-                        );
+                    return (
+                      <button
+                        key={responder.id}
+                        onClick={() => {
 
-                        setShowAssign(false);
-                      }}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-3 py-2.5 text-left transition hover:border-accent-500 hover:bg-navy-800"
-                    >
+                          onAssign(
+                            incident.id,
+                            responder.id
+                          );
 
-                      <div className="flex items-center gap-3">
+                          setShowAssign(
+                            false
+                          );
 
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-900">
+                        }}
+                        className="flex w-full items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-3 py-2.5 text-left transition hover:border-accent-500 hover:bg-navy-800"
+                      >
 
-                          <Ambulance className="h-5 w-5 text-secondary-400" />
+                        <div className="flex items-center gap-3">
 
-                        </div>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-900">
 
-                        <div>
+                            <Ambulance className="h-5 w-5 text-secondary-400" />
 
-                          <div className="text-sm font-bold text-white">
-                            {responder.id.toUpperCase()}
                           </div>
 
-                          <div className="text-xs text-secondary-400">
-                            {responder.type}
+                          <div>
+
+                            <div className="text-sm font-bold text-white">
+                              {responder.id.toUpperCase()}
+                            </div>
+
+                            <div className="text-xs text-secondary-400">
+                              {responder.type}
+                            </div>
+
                           </div>
 
                         </div>
 
-                      </div>
+                        <div className="text-right">
 
-                      <div className="text-right">
+                          <div className="text-xs font-semibold text-emerald-400">
+                            {distance} km
+                          </div>
 
-                        <div className="text-xs font-semibold text-emerald-400">
-                          {distance} km
+                          <div className="text-[10px] uppercase tracking-wider text-emerald-500">
+                            Available
+                          </div>
+
                         </div>
 
-                        <div className="text-[10px] uppercase tracking-wider text-emerald-500">
-                          Available
-                        </div>
-
-                      </div>
-
-                    </button>
-                  );
-                })
+                      </button>
+                    );
+                  }
+                )
 
               )}
 
@@ -1032,11 +1217,19 @@ export function AdminIncidentDetailPage({
 
       <div className="text-center text-xs text-secondary-400">
 
-        Reported at {formatTime(incident.createdAt)}
+        Reported at{' '}
+        {formatTime(
+          incident.createdAt
+        )}
 
         {' · '}
 
-        Source: {SOURCE_LABELS[incident.source]}
+        Source:{' '}
+        {
+          SOURCE_LABELS[
+            incident.source
+          ]
+        }
 
       </div>
 
@@ -1131,36 +1324,6 @@ function Row({
 }
 
 /* =========================================================
-   MAP INFO
-   ========================================================= */
-
-function MapInfo({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: string;
-  valueClass: string;
-}) {
-  return (
-    <div className="rounded-lg border border-navy-700 bg-navy-900 p-3">
-
-      <div className="text-[9px] uppercase tracking-wider text-secondary-400">
-        {label}
-      </div>
-
-      <div
-        className={`mt-1 text-xs font-bold ${valueClass}`}
-      >
-        {value}
-      </div>
-
-    </div>
-  );
-}
-
-/* =========================================================
    DISTANCE CALCULATION
    ========================================================= */
 
@@ -1169,7 +1332,7 @@ function calculateDistance(
   lng1: number,
   lat2: number,
   lng2: number
-) {
+): number {
   const R = 6371;
 
   const dLat =
@@ -1180,8 +1343,12 @@ function calculateDistance(
 
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
+    Math.cos(
+      (lat1 * Math.PI) / 180
+    ) *
+      Math.cos(
+        (lat2 * Math.PI) / 180
+      ) *
       Math.sin(dLng / 2) ** 2;
 
   const c =
@@ -1198,9 +1365,16 @@ function calculateDistance(
    DEMO DISTANCE FOR ASSIGNMENT MODAL
    ========================================================= */
 
-function getDemoDistance(id: string) {
+function getDemoDistance(
+  id: string
+): string {
   const number =
-    Number(id.replace(/\D/g, '')) || 1;
+    Number(
+      id.replace(/\D/g, '')
+    ) || 1;
 
-  return (1.5 + (number % 4) * 0.7).toFixed(1);
+  return (
+    1.5 +
+    (number % 4) * 0.7
+  ).toFixed(1);
 }

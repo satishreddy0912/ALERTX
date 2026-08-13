@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ShieldAlert, Smartphone, MapPin, Bell, Check, X } from 'lucide-react';
-import { getSensorManager, setOnboardingCompleted } from '@/lib/sensors';
+import { getSensorManager } from '@/lib/sensors';
 
 interface Props {
   onComplete: (enabled: boolean) => void;
@@ -11,30 +11,32 @@ export function SensorOnboarding({ onComplete }: Props) {
   const [error, setError] = useState('');
 
   async function handleEnable() {
-    setRequesting(true);
-    setError('');
-    try {
-      const manager = getSensorManager();
-      if (!manager.isSupported()) {
-        // Not supported — mark onboarding done, sensors disabled
-        setOnboardingCompleted(false);
-        onComplete(false);
-        return;
-      }
-      const granted = await manager.requestPermission();
-      setOnboardingCompleted(granted);
-      onComplete(granted);
-    } catch {
-      setError('Unable to access motion sensors. You can enable this later.');
-      setOnboardingCompleted(false);
-      onComplete(false);
-    } finally {
-      setRequesting(false);
-    }
-  }
+  setRequesting(true);
+  setError('');
 
+  try {
+    const manager = getSensorManager();
+
+    if (!manager.isSupported()) {
+      onComplete(false);
+      return;
+    }
+
+    const granted = await manager.requestPermission();
+
+    // Do NOT save onboarding as completed.
+    // This allows the protection layer to appear again
+    // whenever the website is opened.
+    onComplete(granted);
+  } catch {
+    setError('Unable to access motion sensors. You can enable this later.');
+    onComplete(false);
+  } finally {
+    setRequesting(false);
+  }
+}
   function handleSkip() {
-    setOnboardingCompleted(false);
+    
     onComplete(false);
   }
 
