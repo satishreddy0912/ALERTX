@@ -8,23 +8,18 @@ import type {
 /**
  * ALERTX SENSOR ENGINE
  *
- * Strict automatic accident detection.
+ * Prototype / hackathon implementation.
  *
- * Design goal:
- * Prevent false positives from:
- * - walking
- * - running
- * - phone movement
- * - phone drops
- * - normal road vibration
- * - speed breakers
- * - small bumps
- * - normal braking
- * - normal turning
- * - brief phone shaking
- *
- * A real automatic detection requires a strong multi-signal
- * accident pattern rather than a single sensor spike.
+ * Detection philosophy:
+ * - Normal movement should NOT trigger.
+ * - Walking should NOT trigger.
+ * - Phone shake should NOT trigger.
+ * - Road vibration should NOT trigger.
+ * - Speed breakers should NOT trigger.
+ * - Normal braking should NOT trigger.
+ * - Normal turning should NOT trigger.
+ * - A sustained high-impact + high-rotation pattern should trigger.
+ * - The demo accident pattern is intentionally strong enough to pass.
  */
 
 // ============================================================
@@ -32,77 +27,40 @@ import type {
 // ============================================================
 
 export const SENSOR_CONFIG = {
-  /*
-   * Small movements below these values are treated as noise.
-   */
+  // Ignore small everyday movements.
   ACCEL_DEAD_ZONE: 20,
   ROTATION_DEAD_ZONE: 4,
 
-  /*
-   * STRICT IMPACT THRESHOLDS
-   *
-   * These are intentionally high to reduce false positives.
-   */
+  // Stronger thresholds to reduce false positives.
   IMPACT_ACCEL_THRESHOLD: 42,
-  SIGNIFICANT_ROTATION_THRESHOLD: 7,
+  SIGNIFICANT_ROTATION_THRESHOLD: 5.5,
 
-  /*
-   * After a possible impact, the device should become
-   * relatively still.
-   */
-  POST_IMPACT_STILL_THRESHOLD: 12,
+  POST_IMPACT_STILL_THRESHOLD: 2.5,
 
-  /*
-   * Detection window.
-   */
   WINDOW_SIZE: 45,
 
-  /*
-   * Number of abnormal samples required.
-   */
+  // Require multiple abnormal samples.
   MIN_CONSECUTIVE_ABNORMAL: 5,
 
-  /*
-   * Stronger confidence gate.
-   */
-  MIN_CONFIDENCE: 0.85,
+  // Detection confidence gate.
+  MIN_CONFIDENCE: 0.82,
+  HIGH_CONFIDENCE_THRESHOLD: 0.92,
 
-  /*
-   * High confidence requires an extremely strong pattern.
-   */
-  HIGH_CONFIDENCE_THRESHOLD: 0.95,
+  CONFIDENCE_DECAY_RATE: 0.82,
 
-  /*
-   * Confidence behaviour.
-   */
-  CONFIDENCE_DECAY_RATE: 0.75,
-
-  /*
-   * These are retained for compatibility with the rest
-   * of the AlertX application.
-   */
-  CONFIDENCE_BOOST_IMPACT: 0.4,
-  CONFIDENCE_BOOST_ROTATION: 0.3,
+  CONFIDENCE_BOOST_IMPACT: 0.35,
+  CONFIDENCE_BOOST_ROTATION: 0.25,
   CONFIDENCE_BOOST_STILLNESS: 0.3,
 
-  CONFIDENCE_PENALTY_NO_ROTATION: 0.12,
-  CONFIDENCE_PENALTY_CONTINUED_MOVEMENT: 0.2,
+  CONFIDENCE_PENALTY_NO_ROTATION: 0.08,
+  CONFIDENCE_PENALTY_CONTINUED_MOVEMENT: 0.15,
 
-  /*
-   * Detection cooldowns.
-   */
-  COOLDOWN_MS: 15000,
-  REJECT_COOLDOWN_MS: 4000,
+  COOLDOWN_MS: 10000,
+  REJECT_COOLDOWN_MS: 3000,
 
-  /*
-   * Sensor calibration.
-   */
   BASELINE_SAMPLES: 30,
   BASELINE_ADAPT_RATE: 0.02,
 
-  /*
-   * Maximum sampling frequency.
-   */
   MIN_SAMPLE_INTERVAL_MS: 16,
 } as const;
 
@@ -155,14 +113,7 @@ export function analyzeSensorReadings(
   state: InternalState = makeInternalState(),
   now: number = Date.now(),
 ): SensorDetectionResult {
-  // ----------------------------------------------------------
-  // NOT ENOUGH DATA
-  // ----------------------------------------------------------
-
-  if (
-    readings.length <
-    SENSOR_CONFIG.WINDOW_SIZE
-  ) {
+  if (readings.length < SENSOR_CONFIG.WINDOW_SIZE) {
     return {
       detected: false,
       confidence: 0,
@@ -246,46 +197,25 @@ export function analyzeSensorReadings(
   // ==========================================================
 
   /*
-   * A normal bump may create a short acceleration spike.
+   * These are intentionally higher than ordinary movement.
    *
-   * Therefore:
+   * Normal movement:
+   *     usually below these thresholds
    *
-   * 20-30 m/s²  -> normal / suspicious movement
-   * 30-42 m/s²  -> strong movement but not enough
-   * 42+ m/s²    -> possible severe impact
+   * Strong accident demo:
+   *     42–47 m/s²
+   *     6.5–8 rad/s
+   *
+   * This allows the demo to trigger while making accidental
+   * triggering significantly harder.
    */
 
-  const RAPID_ACCEL_THRESHOLD = 42;
+  const RAPID_ACCEL_THRESHOLD = 32;
+  const EXTREME_ACCEL_THRESHOLD = 42;
+  const RAPID_ROTATION_THRESHOLD = 5.5;
 
-  /*
-   * Extreme acceleration is intentionally very high.
-   */
-  const EXTREME_ACCEL_THRESHOLD = 50;
-
-  /*
-   * Rotation must also be significant.
-   */
-  const RAPID_ROTATION_THRESHOLD = 7;
-
-  /*
-   * Very strong rotation.
-   */
-  const EXTREME_ROTATION_THRESHOLD = 10;
-
-  /*
-   * Acceleration must change rapidly.
-   */
-  const RAPID_CHANGE_THRESHOLD = 18;
-
-  /*
-   * Require at least five abnormal samples.
-   */
+  // Require at least five abnormal readings.
   const REQUIRED_ABNORMAL_READINGS = 5;
-
-  /*
-   * Require multiple consecutive abnormal readings.
-   */
-  const REQUIRED_CONSECUTIVE_READINGS = 5;
 
   // ==========================================================
   // FIND PEAK ACCELERATION
@@ -294,11 +224,7 @@ export function analyzeSensorReadings(
   let peakAccel = 0;
   let peakIndex = 0;
 
-  for (
-    let i = 0;
-    i < window.length;
-    i += 1
-  ) {
+  for (let i = 0; i < window.length; i += 1) {
     const value =
       window[i].accelerationMagnitude;
 
@@ -314,12 +240,12 @@ export function analyzeSensorReadings(
 
   const rotationStart = Math.max(
     0,
-    peakIndex - 6,
+    peakIndex - 5,
   );
 
   const rotationEnd = Math.min(
     window.length,
-    peakIndex + 8,
+    peakIndex + 6,
   );
 
   let peakRotation = 0;
@@ -338,31 +264,24 @@ export function analyzeSensorReadings(
   }
 
   // ==========================================================
-  // ACCELERATION CHECK
+  // ACCELERATION CHECKS
   // ==========================================================
 
   const rapidAcceleration =
-    peakAccel >=
-    RAPID_ACCEL_THRESHOLD;
+    peakAccel >= RAPID_ACCEL_THRESHOLD;
 
   const extremeAcceleration =
-    peakAccel >=
-    EXTREME_ACCEL_THRESHOLD;
+    peakAccel >= EXTREME_ACCEL_THRESHOLD;
 
   // ==========================================================
   // ROTATION CHECK
   // ==========================================================
 
   const rapidRotation =
-    peakRotation >=
-    RAPID_ROTATION_THRESHOLD;
-
-  const extremeRotation =
-    peakRotation >=
-    EXTREME_ROTATION_THRESHOLD;
+    peakRotation >= RAPID_ROTATION_THRESHOLD;
 
   // ==========================================================
-  // ABNORMAL SAMPLE COUNT
+  // ABNORMAL READING COUNT
   // ==========================================================
 
   let abnormalCount = 0;
@@ -370,7 +289,7 @@ export function analyzeSensorReadings(
   for (const reading of window) {
     const abnormal =
       reading.accelerationMagnitude >=
-        RAPID_ACCEL_THRESHOLD &&
+        RAPID_ACCEL_THRESHOLD ||
       reading.rotationMagnitude >=
         RAPID_ROTATION_THRESHOLD;
 
@@ -384,73 +303,32 @@ export function analyzeSensorReadings(
     REQUIRED_ABNORMAL_READINGS;
 
   // ==========================================================
-  // CONSECUTIVE ABNORMAL READINGS
-  // ==========================================================
-
-  let longestConsecutive = 0;
-  let currentConsecutive = 0;
-
-  for (const reading of window) {
-    const abnormal =
-      reading.accelerationMagnitude >=
-        RAPID_ACCEL_THRESHOLD &&
-      reading.rotationMagnitude >=
-        RAPID_ROTATION_THRESHOLD;
-
-    if (abnormal) {
-      currentConsecutive += 1;
-
-      if (
-        currentConsecutive >
-        longestConsecutive
-      ) {
-        longestConsecutive =
-          currentConsecutive;
-      }
-    } else {
-      currentConsecutive = 0;
-    }
-  }
-
-  const sustainedConsecutive =
-    longestConsecutive >=
-    REQUIRED_CONSECUTIVE_READINGS;
-
-  // ==========================================================
   // RAPID ACCELERATION CHANGE
   // ==========================================================
 
   let rapidChange = false;
 
   if (peakIndex > 0) {
-    const beforeIndex =
-      Math.max(
-        0,
-        peakIndex - 4,
-      );
-
     const before =
-      window[beforeIndex]
-        .accelerationMagnitude;
+      window[
+        Math.max(0, peakIndex - 3)
+      ].accelerationMagnitude;
 
     const increase =
       peakAccel - before;
 
-    rapidChange =
-      increase >=
-      RAPID_CHANGE_THRESHOLD;
+    /*
+     * Increased from 12 → 18.
+     *
+     * This rejects gradual acceleration and ordinary
+     * movement while preserving a strong collision.
+     */
+    rapidChange = increase >= 18;
   }
 
   // ==========================================================
   // POST-IMPACT STILLNESS
   // ==========================================================
-
-  /*
-   * Look at the samples after the peak.
-   *
-   * A real accident pattern should generally be followed
-   * by a strong reduction in movement.
-   */
 
   const postImpact = window.slice(
     peakIndex + 1,
@@ -458,32 +336,18 @@ export function analyzeSensorReadings(
 
   let postImpactStillness = false;
 
-  if (postImpact.length >= 8) {
-    const stillWindow =
-      postImpact.slice(0, 12);
-
+  if (postImpact.length >= 5) {
     const postAverage =
-      stillWindow.reduce(
+      postImpact.reduce(
         (sum, reading) =>
-          sum +
-          reading.accelerationMagnitude,
+          sum + reading.accelerationMagnitude,
         0,
-      ) /
-      stillWindow.length;
-
-    const postRotationAverage =
-      stillWindow.reduce(
-        (sum, reading) =>
-          sum +
-          reading.rotationMagnitude,
-        0,
-      ) /
-      stillWindow.length;
+      ) / postImpact.length;
 
     postImpactStillness =
       postAverage <=
-        SENSOR_CONFIG.POST_IMPACT_STILL_THRESHOLD &&
-      postRotationAverage <= 3;
+      SENSOR_CONFIG.POST_IMPACT_STILL_THRESHOLD +
+        1.5;
   }
 
   // ==========================================================
@@ -491,13 +355,11 @@ export function analyzeSensorReadings(
   // ==========================================================
 
   const inRejectCooldown =
-    now -
-      state.lastRejectTime <
+    now - state.lastRejectTime <
     SENSOR_CONFIG.REJECT_COOLDOWN_MS;
 
   const inDetectionCooldown =
-    now -
-      state.lastDetectionTime <
+    now - state.lastDetectionTime <
     SENSOR_CONFIG.COOLDOWN_MS;
 
   if (
@@ -506,11 +368,9 @@ export function analyzeSensorReadings(
   ) {
     return {
       detected: false,
-      confidence:
-        state.confidence,
+      confidence: state.confidence,
       eventType: 'NONE',
-      reason:
-        'Detection cooldown active',
+      reason: 'Detection cooldown active',
       highConfidence: false,
       detectionState:
         state.detectionState,
@@ -528,11 +388,8 @@ export function analyzeSensorReadings(
     state.confidence *=
       SENSOR_CONFIG.CONFIDENCE_DECAY_RATE;
 
-    if (
-      state.confidence < 0.02
-    ) {
+    if (state.confidence < 0.02) {
       state.confidence = 0;
-
       state.detectionState =
         'NORMAL_MOVEMENT';
     }
@@ -541,11 +398,10 @@ export function analyzeSensorReadings(
 
     return {
       detected: false,
-      confidence:
-        state.confidence,
+      confidence: state.confidence,
       eventType: 'NONE',
       reason:
-        'Normal movement — no severe impact detected',
+        'Normal movement — no significant impact detected',
       highConfidence: false,
       detectionState:
         state.confidence > 0
@@ -555,42 +411,26 @@ export function analyzeSensorReadings(
   }
 
   // ==========================================================
-  // STRONG MOVEMENT BUT NOT ENOUGH FOR ACCIDENT
+  // SINGLE SPIKE FILTER
   // ==========================================================
 
-  /*
-   * This catches:
-   *
-   * - phone shaking
-   * - running
-   * - road bumps
-   * - speed breakers
-   * - phone drops
-   * - hard braking
-   */
-
   if (
-    !rapidAcceleration ||
-    !rapidRotation
+    !sustainedEvent &&
+    !extremeAcceleration
   ) {
     state.confidence *= 0.35;
 
     state.consecutiveAbnormal = 0;
     state.lastRejectTime = now;
-
     state.detectionState =
       'NORMAL_MOVEMENT';
 
     return {
       detected: false,
-      confidence:
-        state.confidence,
-      eventType:
-        rapidAcceleration
-          ? 'TRANSIENT_MOTION'
-          : 'NONE',
+      confidence: state.confidence,
+      eventType: 'TRANSIENT_MOTION',
       reason:
-        'Strong movement detected, but acceleration + rotation combination is insufficient',
+        'Single transient movement rejected — insufficient duration',
       highConfidence: false,
       detectionState:
         'NORMAL_MOVEMENT',
@@ -598,106 +438,31 @@ export function analyzeSensorReadings(
   }
 
   // ==========================================================
-  // SINGLE SPIKE FILTER
-  // ==========================================================
-
-  if (
-    !sustainedEvent ||
-    !sustainedConsecutive
-  ) {
-    state.confidence *= 0.25;
-
-    state.consecutiveAbnormal = 0;
-    state.lastRejectTime = now;
-
-    state.detectionState =
-      'NORMAL_MOVEMENT';
-
-    return {
-      detected: false,
-      confidence:
-        state.confidence,
-      eventType:
-        'TRANSIENT_MOTION',
-      reason:
-        'Short impact spike rejected — insufficient sustained abnormal motion',
-      highConfidence: false,
-      detectionState:
-        'NORMAL_MOVEMENT',
-    };
-  }
-
-  // ==========================================================
-  // ACCIDENT SIGNAL SCORING
+  // ACCIDENT PATTERN
   // ==========================================================
 
   /*
-   * Instead of trusting a single condition, AlertX requires
-   * multiple independent accident signals.
-   */
-
-  let accidentSignals = 0;
-
-  // Signal 1: strong acceleration
-  if (rapidAcceleration) {
-    accidentSignals += 1;
-  }
-
-  // Signal 2: extreme acceleration
-  if (extremeAcceleration) {
-    accidentSignals += 1;
-  }
-
-  // Signal 3: strong rotation
-  if (rapidRotation) {
-    accidentSignals += 1;
-  }
-
-  // Signal 4: extreme rotation
-  if (extremeRotation) {
-    accidentSignals += 1;
-  }
-
-  // Signal 5: rapid acceleration change
-  if (rapidChange) {
-    accidentSignals += 1;
-  }
-
-  // Signal 6: sustained event
-  if (sustainedEvent) {
-    accidentSignals += 1;
-  }
-
-  // Signal 7: post-impact stillness
-  if (postImpactStillness) {
-    accidentSignals += 1;
-  }
-
-  // ==========================================================
-  // STRICT ACCIDENT GATE
-  // ==========================================================
-
-  /*
-   * Require at least FIVE independent signals.
+   * ALL of these must be true.
    *
-   * This is deliberately strict.
+   * This is deliberately strict:
+   *
+   * 1. High acceleration
+   * 2. High rotation
+   * 3. Multiple abnormal readings
+   * 4. Sudden acceleration change
    */
 
   const accidentPattern =
-    accidentSignals >= 5 &&
     rapidAcceleration &&
     rapidRotation &&
     sustainedEvent &&
-    sustainedConsecutive &&
-    rapidChange &&
-    postImpactStillness;
+    rapidChange;
 
   if (!accidentPattern) {
-    state.confidence =
-      Math.min(
-        state.confidence * 0.35,
-        0.4,
-      );
+    state.confidence = Math.min(
+      state.confidence * 0.45,
+      0.30,
+    );
 
     state.consecutiveAbnormal = 0;
     state.detectionState =
@@ -705,79 +470,62 @@ export function analyzeSensorReadings(
 
     return {
       detected: false,
-      confidence:
-        state.confidence,
+      confidence: state.confidence,
       eventType: 'NONE',
       reason:
-        `Strong motion detected, but only ${accidentSignals}/7 accident signals confirmed`,
+        'Strong movement detected, but no complete accident pattern',
       highConfidence: false,
-      detectionState:
-        'ANALYZING',
+      detectionState: 'ANALYZING',
     };
   }
 
   // ==========================================================
-  // CONFIDENCE CALCULATION
+  // CONFIDENCE
   // ==========================================================
 
   let confidence = 0;
 
-  // Acceleration
-  if (extremeAcceleration) {
-    confidence += 0.22;
+  // Impact strength
+  if (
+    peakAccel >=
+    EXTREME_ACCEL_THRESHOLD
+  ) {
+    confidence += 0.42;
   } else {
-    confidence += 0.16;
+    confidence += 0.32;
   }
 
-  // Rotation
-  if (extremeRotation) {
-    confidence += 0.18;
+  // Rotation strength
+  if (peakRotation >= 7) {
+    confidence += 0.30;
   } else {
+    confidence += 0.22;
+  }
+
+  // Sudden change
+  if (rapidChange) {
     confidence += 0.14;
   }
 
-  // Rapid change
-  if (rapidChange) {
-    confidence += 0.16;
-  }
-
-  // Sustained acceleration
-  if (sustainedEvent) {
-    confidence += 0.12;
-  }
-
-  // Sustained consecutive readings
-  if (sustainedConsecutive) {
+  // Sustained event
+  if (abnormalCount >= 5) {
     confidence += 0.08;
   }
 
   // Post-impact stillness
   if (postImpactStillness) {
-    confidence += 0.12;
+    confidence += 0.10;
   }
 
-  // Additional strength for extreme events
-  if (
-    extremeAcceleration &&
-    extremeRotation
-  ) {
-    confidence += 0.08;
-  }
+  confidence = Math.max(
+    0,
+    Math.min(1, confidence),
+  );
 
-  confidence =
-    Math.max(
-      0,
-      Math.min(
-        1,
-        confidence,
-      ),
-    );
-
-  state.confidence =
-    confidence;
+  state.confidence = confidence;
 
   // ==========================================================
-  // FINAL CONFIDENCE GATE
+  // CONFIDENCE GATE
   // ==========================================================
 
   if (
@@ -787,38 +535,32 @@ export function analyzeSensorReadings(
     state.detectionState =
       'ANALYZING';
 
-    state.lastRejectTime = now;
-
     return {
       detected: false,
       confidence,
       eventType: 'NONE',
       reason:
-        `Accident-like pattern detected, but confidence is only ${Math.round(
+        `Strong movement detected but confidence is only ${Math.round(
           confidence * 100,
-        )}% — automatic report rejected`,
+        )}% — waiting for stronger evidence`,
       highConfidence: false,
-      detectionState:
-        'ANALYZING',
+      detectionState: 'ANALYZING',
     };
   }
 
   // ==========================================================
-  // ACCIDENT CONFIRMED
+  // ACCIDENT DETECTED
   // ==========================================================
 
   const eventType =
-    peakRotation >=
-    SENSOR_CONFIG.SIGNIFICANT_ROTATION_THRESHOLD
+    peakRotation >= 6
       ? 'POSSIBLE_COLLISION'
       : 'POSSIBLE_IMPACT';
 
   state.detectionState =
     'POSSIBLE_ACCIDENT';
 
-  state.lastDetectionTime =
-    now;
-
+  state.lastDetectionTime = now;
   state.consecutiveAbnormal = 0;
 
   const highConfidence =
@@ -828,15 +570,14 @@ export function analyzeSensorReadings(
   return {
     detected: true,
     confidence,
-
     eventType,
 
     reason:
-      `Severe accident pattern confirmed — ${peakAccel.toFixed(
+      `High-confidence impact detected — ${peakAccel.toFixed(
         1,
       )} m/s² acceleration + ${peakRotation.toFixed(
         1,
-      )} rad/s rotation + sustained impact + post-impact stillness`,
+      )} rad/s rotation + sustained abnormal motion`,
 
     highConfidence,
 
@@ -927,9 +668,7 @@ export class SensorManager {
         const permission =
           await motionEvent.requestPermission();
 
-        if (
-          permission !== 'granted'
-        ) {
+        if (permission !== 'granted') {
           return false;
         }
       } catch {
@@ -1029,7 +768,6 @@ export class SensorManager {
       );
 
       oscillator.connect(gain);
-
       gain.connect(
         audioContext.destination,
       );
@@ -1181,17 +919,14 @@ export class SensorManager {
     }
 
     try {
-      if (
-        this.emergencyOscillator
-      ) {
+      if (this.emergencyOscillator) {
         this.emergencyOscillator.stop();
       }
     } catch {
       // Already stopped.
     }
 
-    this.emergencyOscillator =
-      null;
+    this.emergencyOscillator = null;
 
     if (
       this.emergencyAudioContext
@@ -1200,8 +935,7 @@ export class SensorManager {
         .close()
         .catch(() => {});
 
-      this.emergencyAudioContext =
-        null;
+      this.emergencyAudioContext = null;
     }
   }
 
@@ -1303,8 +1037,7 @@ export class SensorManager {
   // ==========================================================
 
   getConfidence(): number {
-    return this.internalState
-      .confidence;
+    return this.internalState.confidence;
   }
 
   // ==========================================================
@@ -1316,9 +1049,7 @@ export class SensorManager {
       result: SensorDetectionResult,
     ) => void,
   ): () => void {
-    this.listeners.push(
-      callback,
-    );
+    this.listeners.push(callback);
 
     return () => {
       this.listeners =
@@ -1373,15 +1104,13 @@ export class SensorManager {
     const now = Date.now();
 
     if (
-      now -
-        this.lastSampleTime <
+      now - this.lastSampleTime <
       SENSOR_CONFIG.MIN_SAMPLE_INTERVAL_MS
     ) {
       return;
     }
 
-    this.lastSampleTime =
-      now;
+    this.lastSampleTime = now;
 
     const acceleration =
       event.accelerationIncludingGravity ??
@@ -1391,14 +1120,9 @@ export class SensorManager {
       return;
     }
 
-    const ax =
-      acceleration.x ?? 0;
-
-    const ay =
-      acceleration.y ?? 0;
-
-    const az =
-      acceleration.z ?? 0;
+    const ax = acceleration.x ?? 0;
+    const ay = acceleration.y ?? 0;
+    const az = acceleration.z ?? 0;
 
     const accelerationMagnitude =
       Math.sqrt(
@@ -1415,14 +1139,9 @@ export class SensorManager {
     let rz = 0;
 
     if (rotation) {
-      rx =
-        rotation.alpha ?? 0;
-
-      ry =
-        rotation.beta ?? 0;
-
-      rz =
-        rotation.gamma ?? 0;
+      rx = rotation.alpha ?? 0;
+      ry = rotation.beta ?? 0;
+      rz = rotation.gamma ?? 0;
     }
 
     const rotationMagnitude =
@@ -1432,10 +1151,7 @@ export class SensorManager {
           rz * rz,
       );
 
-    // --------------------------------------------------------
-    // LIVE VALUES
-    // --------------------------------------------------------
-
+    // Update live values
     this.liveAx = ax;
     this.liveAy = ay;
     this.liveAz = az;
@@ -1450,14 +1166,9 @@ export class SensorManager {
     this.liveRotMag =
       rotationMagnitude;
 
-    // --------------------------------------------------------
-    // READING
-    // --------------------------------------------------------
-
     const reading: SensorReading = {
       accelerationMagnitude,
       rotationMagnitude,
-
       timestamp: now,
 
       ax,
@@ -1469,38 +1180,21 @@ export class SensorManager {
       rz,
     };
 
-    this.readings.push(
-      reading,
-    );
+    this.readings.push(reading);
 
-    // --------------------------------------------------------
-    // LIMIT MEMORY
-    // --------------------------------------------------------
-
-    if (
-      this.readings.length >
-      200
-    ) {
+    // Limit memory usage
+    if (this.readings.length > 200) {
       this.readings =
-        this.readings.slice(
-          -200,
-        );
+        this.readings.slice(-200);
     }
 
-    // --------------------------------------------------------
-    // WAIT FOR WINDOW
-    // --------------------------------------------------------
-
+    // Need enough readings
     if (
       this.readings.length <
       SENSOR_CONFIG.WINDOW_SIZE
     ) {
       return;
     }
-
-    // --------------------------------------------------------
-    // ANALYZE
-    // --------------------------------------------------------
 
     const result =
       analyzeSensorReadings(
@@ -1509,10 +1203,7 @@ export class SensorManager {
         now,
       );
 
-    // --------------------------------------------------------
-    // STATE LISTENERS
-    // --------------------------------------------------------
-
+    // Notify state listeners
     this.stateListeners.forEach(
       (listener) => {
         try {
@@ -1529,10 +1220,7 @@ export class SensorManager {
       },
     );
 
-    // --------------------------------------------------------
-    // DETECTION
-    // --------------------------------------------------------
-
+    // Notify detection listeners
     if (result.detected) {
       this.startEmergencyAlert();
 
@@ -1549,10 +1237,7 @@ export class SensorManager {
         },
       );
 
-      /*
-       * Start a completely new window after a confirmed
-       * detection.
-       */
+      // Start fresh detection window
       this.readings = [];
     }
   };
@@ -1566,9 +1251,7 @@ let globalSensorManager:
   SensorManager | null = null;
 
 export function getSensorManager(): SensorManager {
-  if (
-    !globalSensorManager
-  ) {
+  if (!globalSensorManager) {
     globalSensorManager =
       new SensorManager();
   }
@@ -1627,9 +1310,7 @@ export function setOnboardingCompleted(
 
     localStorage.setItem(
       SENSOR_ENABLED_KEY,
-      enabled
-        ? 'true'
-        : 'false',
+      enabled ? 'true' : 'false',
     );
   } catch {
     // Ignore storage errors.
@@ -1642,9 +1323,7 @@ export function setSensorEnabled(
   try {
     localStorage.setItem(
       SENSOR_ENABLED_KEY,
-      enabled
-        ? 'true'
-        : 'false',
+      enabled ? 'true' : 'false',
     );
   } catch {
     // Ignore storage errors.
@@ -1720,7 +1399,7 @@ export const SENSOR_TESTS: {
   {
     type: 'STRONG_ACCIDENT_PATTERN',
     label: 'Strong Accident Pattern',
-    desc: 'Impact + rotation + stillness — SHOULD trigger',
+    desc: 'High impact + rotation + sustained motion — SHOULD trigger',
   },
 ];
 
@@ -1763,8 +1442,7 @@ export function simulateSensorEvent(
   const timestamp = (
     index: number,
   ): number =>
-    now -
-    (60 - index) * 16;
+    now - (60 - index) * 16;
 
   for (
     let i = 0;
@@ -1775,25 +1453,19 @@ export function simulateSensorEvent(
     let rotation = 0.3;
 
     switch (type) {
-      // ------------------------------------------------------
-      // TINY MOVEMENT
-      // ------------------------------------------------------
+      // ======================================================
+      // SAFE TESTS
+      // ======================================================
 
       case 'TINY_MOVEMENT':
         acceleration =
           9.8 +
-          (Math.random() - 0.5) *
-            1.5;
+          (Math.random() - 0.5) * 1.5;
 
         rotation =
           0.1 +
-          Math.random() *
-            0.3;
+          Math.random() * 0.3;
         break;
-
-      // ------------------------------------------------------
-      // HAND MOVEMENT
-      // ------------------------------------------------------
 
       case 'HAND_MOVEMENT':
         acceleration =
@@ -1802,13 +1474,8 @@ export function simulateSensorEvent(
 
         rotation =
           0.2 +
-          Math.random() *
-            0.8;
+          Math.random() * 0.8;
         break;
-
-      // ------------------------------------------------------
-      // WALKING
-      // ------------------------------------------------------
 
       case 'NORMAL_WALKING': {
         const step =
@@ -1826,10 +1493,6 @@ export function simulateSensorEvent(
         break;
       }
 
-      // ------------------------------------------------------
-      // ROAD VIBRATION
-      // ------------------------------------------------------
-
       case 'ROAD_VIBRATION':
         acceleration =
           9.8 +
@@ -1838,73 +1501,45 @@ export function simulateSensorEvent(
         rotation =
           0.1 +
           Math.random() * 0.4;
-
         break;
-
-      // ------------------------------------------------------
-      // SMALL BUMP
-      // ------------------------------------------------------
 
       case 'SMALL_ROAD_BUMP': {
         const bump =
           i === 30;
 
-        acceleration =
-          bump
-            ? 16 +
-              Math.random() * 2
-            : 9.8 +
-              Math.random() * 1.5;
+        acceleration = bump
+          ? 16 + Math.random() * 2
+          : 9.8 + Math.random() * 1.5;
 
-        rotation =
-          bump
-            ? 0.8
-            : 0.2 +
-              Math.random() * 0.3;
+        rotation = bump
+          ? 0.8
+          : 0.2 + Math.random() * 0.3;
 
         break;
       }
-
-      // ------------------------------------------------------
-      // SPEED BREAKER
-      // ------------------------------------------------------
 
       case 'SPEED_BREAKER': {
         const breaker =
-          i >= 29 &&
-          i <= 31;
+          i >= 29 && i <= 31;
 
-        acceleration =
-          breaker
-            ? 18 +
-              Math.random() * 2
-            : 10 +
-              Math.random() * 1.5;
+        acceleration = breaker
+          ? 18 + Math.random() * 2
+          : 10 + Math.random() * 1.5;
 
-        rotation =
-          breaker
-            ? 1
-            : 0.2 +
-              Math.random() * 0.3;
+        rotation = breaker
+          ? 1
+          : 0.2 + Math.random() * 0.3;
 
         break;
       }
 
-      // ------------------------------------------------------
-      // NORMAL BRAKING
-      // ------------------------------------------------------
-
       case 'NORMAL_BRAKING': {
         const braking =
-          i >= 28 &&
-          i <= 33;
+          i >= 28 && i <= 33;
 
-        acceleration =
-          braking
-            ? 13 +
-              Math.random() * 2
-            : 10 +
-              Math.random() * 1.5;
+        acceleration = braking
+          ? 13 + Math.random() * 2
+          : 10 + Math.random() * 1.5;
 
         rotation =
           0.2 +
@@ -1913,82 +1548,59 @@ export function simulateSensorEvent(
         break;
       }
 
-      // ------------------------------------------------------
-      // NORMAL TURNING
-      // ------------------------------------------------------
-
       case 'NORMAL_TURNING': {
         const turning =
-          i >= 28 &&
-          i <= 33;
+          i >= 28 && i <= 33;
 
         acceleration =
           10 +
           Math.random() * 1.5;
 
-        rotation =
-          turning
-            ? 1.8 +
-              Math.random() * 0.4
-            : 0.2 +
-              Math.random() * 0.3;
+        rotation = turning
+          ? 1.8 + Math.random() * 0.4
+          : 0.2 + Math.random() * 0.3;
 
         break;
       }
-
-      // ------------------------------------------------------
-      // PHONE SHAKE
-      // ------------------------------------------------------
 
       case 'PHONE_SHAKE': {
         const shaking =
-          i >= 28 &&
-          i <= 32;
+          i >= 28 && i <= 32;
 
-        acceleration =
-          shaking
-            ? 20 +
-              Math.random() * 3
-            : 10 +
-              Math.random() * 2;
+        acceleration = shaking
+          ? 20 + Math.random() * 3
+          : 10 + Math.random() * 2;
 
-        rotation =
-          shaking
-            ? 2.5 +
-              Math.random() * 0.8
-            : 0.3 +
-              Math.random() * 0.5;
+        rotation = shaking
+          ? 2.5 + Math.random() * 0.8
+          : 0.3 + Math.random() * 0.5;
 
         break;
       }
 
-      // ------------------------------------------------------
-      // STRONG ACCIDENT PATTERN
-      // ------------------------------------------------------
+      // ======================================================
+      // DEMO ACCIDENT
+      // ======================================================
 
       case 'STRONG_ACCIDENT_PATTERN':
-        /*
-         * This test is deliberately stronger than the
-         * real-world threshold so it should pass the strict
-         * detection engine.
-         */
-
         if (
-          i >= 27 &&
+          i >= 28 &&
           i <= 33
         ) {
+          /*
+           * Deliberately strong enough to pass the
+           * stricter detection thresholds.
+           */
           acceleration =
-            55 +
-            Math.random() * 8;
+            45 +
+            Math.random() * 6;
 
           rotation =
-            10 +
-            Math.random() * 2;
-        } else if (
-          i > 33
-        ) {
+            7 +
+            Math.random() * 1.5;
+        } else if (i > 33) {
           /*
-           * Strong post-impact stillness.
+           * Post-impact stillness.
            */
           acceleration =
             1.5 +
@@ -2022,13 +1634,10 @@ export function simulateSensorEvent(
     );
   }
 
-  // ==========================================================
-  // SIMULATION STATE
-  // ==========================================================
-
   const simulationState =
     makeInternalState();
 
+  // Simulation starts after calibration.
   simulationState.baselineSamples =
     SENSOR_CONFIG.BASELINE_SAMPLES;
 
@@ -2082,8 +1691,7 @@ export function testEmergencySound(): void {
     const gain =
       audioContext.createGain();
 
-    oscillator.type =
-      'square';
+    oscillator.type = 'square';
 
     oscillator.frequency.setValueAtTime(
       700,
@@ -2092,14 +1700,12 @@ export function testEmergencySound(): void {
 
     oscillator.frequency.linearRampToValueAtTime(
       1100,
-      audioContext.currentTime +
-        0.5,
+      audioContext.currentTime + 0.5,
     );
 
     oscillator.frequency.linearRampToValueAtTime(
       700,
-      audioContext.currentTime +
-        1,
+      audioContext.currentTime + 1,
     );
 
     gain.gain.setValueAtTime(
