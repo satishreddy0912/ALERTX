@@ -1,8 +1,21 @@
-export type EmergencyType = 'Road Accident' | 'Medical Emergency' | 'Fire' | 'Other';
+export type EmergencyType =
+  | 'Road Accident'
+  | 'Medical Emergency'
+  | 'Fire'
+  | 'Other';
 
-export type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type Severity =
+  | 'LOW'
+  | 'MEDIUM'
+  | 'HIGH'
+  | 'CRITICAL';
 
-export type EmergencyDetection = 'EMERGENCY DETECTED' | 'NO CLEAR EMERGENCY' | 'UNCERTAIN' | 'POSSIBLE EMERGENCY' | 'HIGH-CONFIDENCE EMERGENCY';
+export type EmergencyDetection =
+  | 'EMERGENCY DETECTED'
+  | 'NO CLEAR EMERGENCY'
+  | 'UNCERTAIN'
+  | 'POSSIBLE EMERGENCY'
+  | 'HIGH-CONFIDENCE EMERGENCY';
 
 export type IncidentStatus =
   | 'NEW'
@@ -14,15 +27,37 @@ export type IncidentStatus =
   | 'VERIFIED'
   | 'SUSPICIOUS';
 
-export type IncidentSource = 'user_report' | 'mobile_sensor' | 'simulator' | 'fast_sos';
+export type IncidentSource =
+  | 'user_report'
+  | 'mobile_sensor'
+  | 'simulator'
+  | 'fast_sos';
 
-export type ResponderType = 'Medical Response' | 'Fire & Rescue' | 'Urban Rescue' | 'Traffic Response';
+export type ResponderType =
+  | 'Medical Response'
+  | 'Fire & Rescue'
+  | 'Urban Rescue'
+  | 'Traffic Response';
 
-export type ResponderStatus = 'Available' | 'Responding' | 'Busy' | 'Offline';
+export type ResponderStatus =
+  | 'Available'
+  | 'Responding'
+  | 'Busy'
+  | 'Offline';
 
-export type TimelineStage = 'Reported' | 'AI Analyzed' | 'Responder Alerted' | 'Responder Assigned' | 'Responding' | 'Resolved';
+export type TimelineStage =
+  | 'Reported'
+  | 'AI Analyzed'
+  | 'Responder Alerted'
+  | 'Responder Assigned'
+  | 'Responding'
+  | 'Resolved';
 
-export type CredibilityLevel = 'HIGH CREDIBILITY' | 'MEDIUM CREDIBILITY' | 'LOW CREDIBILITY' | 'VERIFICATION REQUIRED';
+export type CredibilityLevel =
+  | 'HIGH CREDIBILITY'
+  | 'MEDIUM CREDIBILITY'
+  | 'LOW CREDIBILITY'
+  | 'VERIFICATION REQUIRED';
 
 export interface CredibilityAssessment {
   score: number;
@@ -51,9 +86,11 @@ export interface SensorReading {
   accelerationMagnitude: number;
   rotationMagnitude: number;
   timestamp: number;
+
   ax?: number;
   ay?: number;
   az?: number;
+
   rx?: number;
   ry?: number;
   rz?: number;
@@ -63,69 +100,129 @@ export interface LiveSensorValues {
   ax: number;
   ay: number;
   az: number;
+
   rx: number;
   ry: number;
   rz: number;
+
   accelerationMagnitude: number;
   rotationMagnitude: number;
+
   active: boolean;
 }
 
-export type DetectionState = 'MONITORING' | 'NORMAL_MOVEMENT' | 'ANALYZING' | 'POSSIBLE_ACCIDENT';
+export type DetectionState =
+  | 'MONITORING'
+  | 'NORMAL_MOVEMENT'
+  | 'ANALYZING'
+  | 'POSSIBLE_ACCIDENT';
 
 export interface SensorDetectionResult {
   detected: boolean;
   confidence: number;
-  eventType: 'NONE' | 'POSSIBLE_FALL' | 'POSSIBLE_IMPACT' | 'POSSIBLE_COLLISION' | 'TRANSIENT_MOTION';
+
+  eventType:
+    | 'NONE'
+    | 'POSSIBLE_FALL'
+    | 'POSSIBLE_IMPACT'
+    | 'POSSIBLE_COLLISION'
+    | 'TRANSIENT_MOTION';
+
   reason: string;
+
   highConfidence: boolean;
+
   detectionState: DetectionState;
 }
 
 export interface Incident {
   id: string;
+
   type: EmergencyType;
+
   name: string;
+
   phone: string;
+
   location: string;
+
   description: string;
+
   imageData: string | null;
+
   severity: Severity;
+
   priority: number;
+
   aiSummary: string;
+
   recommendedResponse: string;
+
   credibility: CredibilityAssessment;
+
   status: IncidentStatus;
+
   createdAt: number;
+
   assignedResponderId: string | null;
+
   acceptedBy: string | null;
+
   acceptedByName: string | null;
+
   assignedByAdminId?: string | null;
+
   assignedByAdminName?: string | null;
+
   timeline: TimelineEntry[];
+
   audit: AuditEntry[];
-  coords: { lat: number; lng: number } | null;
+
+  coords: {
+    lat: number;
+    lng: number;
+  } | null;
+
   source: IncidentSource;
+
   simLevel?: string;
+
   escalated: boolean;
+
   reporterSafe: boolean;
+
   emergencyDetection: EmergencyDetection;
+
   confidence: number;
+
   reason: string;
+
   sensorConfidence?: number;
+
   sensorEventType?: string;
+
   urgent?: boolean;
 }
 
 export interface Responder {
   id: string;
+
   name: string;
+
   type: ResponderType;
+
   location: string;
+
   status: ResponderStatus;
+
   assignedIncidentId: string | null;
-  coords: { lat: number; lng: number };
+
+  coords: {
+    lat: number;
+    lng: number;
+  };
 }
+
 export interface ResponderAccount {
   id: string;
   email: string;
@@ -143,6 +240,7 @@ export interface AdminAccount {
 
 export type ViewKey =
   | 'home'
+  | 'profile'
   | 'report'
   | 'simulator'
   | 'dashboard'

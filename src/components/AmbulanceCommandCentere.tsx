@@ -1,1124 +1,1059 @@
-import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Ambulance,
-  Building2,
+  ArrowLeft,
   CheckCircle2,
-  Flame,
-  LocateFixed,
+  Clock3,
   MapPin,
   Navigation,
-  Radio,
-  Shield,
+  Phone,
+  ShieldAlert,
   Siren,
-  Timer,
-  UserRound,
-  UsersRound,
+  User,
+  Users,
+  XCircle,
   Zap,
 } from 'lucide-react';
 
-import type { Incident } from '@/types';
-
-interface AmbulanceUnit {
-  id: string;
-  driver: string;
-  lat: number;
-  lng: number;
-  status:
-    | 'AVAILABLE'
-    | 'ASSIGNED'
-    | 'DISPATCHED'
-    | 'EN_ROUTE'
-    | 'ARRIVED';
-  speed: number;
-  eta: number;
-  phone: string;
-}
+import type {
+  Incident,
+  IncidentStatus,
+  Responder,
+} from '@/types';
 
 interface Props {
   incidents: Incident[];
+  responders: Responder[];
+
+  onBack?: () => void;
+
+  onViewIncident?: (id: string) => void;
+
+  onAcceptIncident?: (id: string) => void;
+
+  onMarkResponding?: (id: string) => void;
+
+  onResolveIncident?: (id: string) => void;
 }
 
-const INITIAL_AMBULANCES: AmbulanceUnit[] = [
-  {
-    id: 'AMB-01',
-    driver: 'Rajesh Kumar',
-    lat: 17.4401,
-    lng: 78.4982,
-    status: 'AVAILABLE',
-    speed: 0,
-    eta: 0,
-    phone: '+91 90000 00001',
-  },
-  {
-    id: 'AMB-02',
-    driver: 'Suresh Reddy',
-    lat: 17.4256,
-    lng: 78.5104,
-    status: 'AVAILABLE',
-    speed: 0,
-    eta: 0,
-    phone: '+91 90000 00002',
-  },
-  {
-    id: 'AMB-03',
-    driver: 'Arjun Rao',
-    lat: 17.4582,
-    lng: 78.4868,
-    status: 'AVAILABLE',
-    speed: 0,
-    eta: 0,
-    phone: '+91 90000 00003',
-  },
-];
-
-const RESPONSE_TEAMS = [
-  {
-    id: 'POL-01',
-    name: 'Hyderabad Police',
-    type: 'POLICE',
-    icon: Shield,
-    status: 'READY',
-    eta: 4,
-  },
-  {
-    id: 'FIRE-01',
-    name: 'Fire & Rescue Unit',
-    type: 'FIRE',
-    icon: Flame,
-    status: 'READY',
-    eta: 6,
-  },
-  {
-    id: 'RES-01',
-    name: 'Special Rescue Team',
-    type: 'RESCUE',
-    icon: UsersRound,
-    status: 'READY',
-    eta: 8,
-  },
-  {
-    id: 'HOSP-01',
-    name: 'Emergency Hospital',
-    type: 'HOSPITAL',
-    icon: Building2,
-    status: 'READY',
-    eta: 5,
-  },
-] as const;
-
-const VICTIM = {
-  lat: 17.433,
-  lng: 78.501,
-};
-
-function calculateDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const earthRadius = 6371;
-
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-
-  const c =
-    2 *
-    Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a),
-    );
-
-  return earthRadius * c;
-}
-
-function calculateETA(distanceKm: number): number {
-  const averageSpeed = 35;
-
-  return Math.max(
-    1,
-    Math.ceil(
-      (distanceKm / averageSpeed) * 60,
-    ),
-  );
-}
-
-function getStatusLabel(
-  status: AmbulanceUnit['status'],
-): string {
-  switch (status) {
-    case 'AVAILABLE':
-      return 'Available';
-    case 'ASSIGNED':
-      return 'Assigned';
-    case 'DISPATCHED':
-      return 'Dispatched';
-    case 'EN_ROUTE':
-      return 'En Route';
-    case 'ARRIVED':
-      return 'Arrived';
-    default:
-      return 'Unknown';
-  }
-}
-
-function getStatusColor(
-  status: AmbulanceUnit['status'],
-): string {
-  switch (status) {
-    case 'AVAILABLE':
-      return 'text-emerald-400';
-    case 'ASSIGNED':
-      return 'text-yellow-400';
-    case 'DISPATCHED':
-      return 'text-blue-400';
-    case 'EN_ROUTE':
-      return 'text-cyan-400';
-    case 'ARRIVED':
-      return 'text-green-400';
-    default:
-      return 'text-secondary-400';
-  }
-}
-
-export default function AmbulanceCommandCenter({
+export function AmbulanceCommandCentre({
   incidents,
+  responders,
+  onBack,
+  onViewIncident,
+  onAcceptIncident,
+  onMarkResponding,
+  onResolveIncident,
 }: Props) {
-  const [ambulances, setAmbulances] =
-    useState<AmbulanceUnit[]>(
-      INITIAL_AMBULANCES,
+  const ambulanceResponders = responders.filter(
+    (responder) =>
+      responder.type === 'Medical Response',
+  );
+
+  const activeIncidents = incidents.filter(
+    (incident) =>
+      incident.status !== 'RESOLVED',
+  );
+
+  const criticalIncidents = activeIncidents.filter(
+    (incident) =>
+      incident.severity === 'CRITICAL',
+  );
+
+  const respondingIncidents = activeIncidents.filter(
+    (incident) =>
+      incident.status === 'RESPONDING',
+  );
+
+  const availableAmbulances =
+    ambulanceResponders.filter(
+      (responder) =>
+        responder.status === 'Available',
     );
 
-  const [tracking, setTracking] =
-    useState(false);
-
-  const [
-    selectedAmbulanceId,
-    setSelectedAmbulanceId,
-  ] = useState('AMB-01');
-
-  const [trackingStep, setTrackingStep] =
-    useState(0);
-
-  const [dispatchedTeams, setDispatchedTeams] =
-    useState<string[]>([]);
-
-  const ambulanceDistances = useMemo(() => {
-    return ambulances
-      .map((ambulance) => ({
-        ...ambulance,
-        distance: calculateDistance(
-          ambulance.lat,
-          ambulance.lng,
-          VICTIM.lat,
-          VICTIM.lng,
-        ),
-      }))
-      .sort(
-        (a, b) =>
-          a.distance - b.distance,
-      );
-  }, [ambulances]);
-
-  const nearestAmbulance =
-    ambulanceDistances[0];
-
-  const selectedAmbulance =
-    ambulances.find(
-      (ambulance) =>
-        ambulance.id ===
-        selectedAmbulanceId,
-    ) ?? nearestAmbulance;
-
-  const activeIncident = useMemo(() => {
-    return [...incidents]
-      .filter(
-        (incident) =>
-          incident.status !== 'RESOLVED' &&
-          incident.status !== 'SUSPICIOUS',
-      )
-      .sort(
-        (a, b) =>
-          b.priority - a.priority,
-      )[0];
-  }, [incidents]);
-
-  useEffect(() => {
-    if (!nearestAmbulance) {
-      return;
-    }
-
-    setSelectedAmbulanceId(
-      (currentId) => {
-        const exists = ambulances.some(
-          (ambulance) =>
-            ambulance.id === currentId,
-        );
-
-        return exists
-          ? currentId
-          : nearestAmbulance.id;
+  function formatTime(timestamp: number) {
+    return new Date(timestamp).toLocaleTimeString(
+      [],
+      {
+        hour: '2-digit',
+        minute: '2-digit',
       },
     );
-  }, [nearestAmbulance, ambulances]);
+  }
 
-  useEffect(() => {
-    if (!tracking) {
-      return;
+  function getSeverityClass(
+    severity: Incident['severity'],
+  ) {
+    switch (severity) {
+      case 'CRITICAL':
+        return 'border-red-500/40 bg-red-500/10 text-red-300';
+
+      case 'HIGH':
+        return 'border-orange-500/40 bg-orange-500/10 text-orange-300';
+
+      case 'MEDIUM':
+        return 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300';
+
+      default:
+        return 'border-green-500/40 bg-green-500/10 text-green-300';
+    }
+  }
+
+  function getStatusClass(
+    status: IncidentStatus,
+  ) {
+    switch (status) {
+      case 'NEW':
+        return 'bg-blue-500/10 text-blue-300 border-blue-500/30';
+
+      case 'ASSIGNED':
+        return 'bg-purple-500/10 text-purple-300 border-purple-500/30';
+
+      case 'RESPONDING':
+        return 'bg-orange-500/10 text-orange-300 border-orange-500/30';
+
+      case 'RESOLVED':
+        return 'bg-green-500/10 text-green-300 border-green-500/30';
+
+      case 'ESCALATED':
+        return 'bg-red-500/10 text-red-300 border-red-500/30';
+
+      case 'VERIFIED':
+        return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+
+      case 'SUSPICIOUS':
+        return 'bg-red-500/10 text-red-300 border-red-500/30';
+
+      case 'VERIFICATION_REQUIRED':
+        return 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30';
+
+      default:
+        return 'bg-navy-800 text-secondary-400 border-navy-700';
+    }
+  }
+
+  function getResponderForIncident(
+    incident: Incident,
+  ) {
+    if (!incident.assignedResponderId) {
+      return undefined;
     }
 
-    const timer = window.setInterval(() => {
-      setTrackingStep(
-        (previous) => {
-          if (previous >= 4) {
-            setTracking(false);
-            return 4;
-          }
-
-          return previous + 1;
-        },
-      );
-    }, 3000);
-
-    return () =>
-      window.clearInterval(timer);
-  }, [tracking]);
-
-  useEffect(() => {
-    if (!tracking) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setAmbulances(
-        (current) =>
-          current.map((ambulance) => {
-            if (
-              ambulance.id !==
-              selectedAmbulanceId
-            ) {
-              return ambulance;
-            }
-
-            if (trackingStep >= 4) {
-              return {
-                ...ambulance,
-                lat: VICTIM.lat,
-                lng: VICTIM.lng,
-                status: 'ARRIVED',
-                speed: 0,
-                eta: 0,
-              };
-            }
-
-            const latDifference =
-              VICTIM.lat -
-              ambulance.lat;
-
-            const lngDifference =
-              VICTIM.lng -
-              ambulance.lng;
-
-            const newLat =
-              ambulance.lat +
-              latDifference * 0.12;
-
-            const newLng =
-              ambulance.lng +
-              lngDifference * 0.12;
-
-            const newDistance =
-              calculateDistance(
-                newLat,
-                newLng,
-                VICTIM.lat,
-                VICTIM.lng,
-              );
-
-            let status: AmbulanceUnit['status'];
-
-            if (trackingStep === 0) {
-              status = 'ASSIGNED';
-            } else if (
-              trackingStep === 1
-            ) {
-              status = 'DISPATCHED';
-            } else {
-              status = 'EN_ROUTE';
-            }
-
-            return {
-              ...ambulance,
-              lat: newLat,
-              lng: newLng,
-              status,
-              speed:
-                trackingStep >= 1
-                  ? 42
-                  : 0,
-              eta:
-                trackingStep >= 3
-                  ? 1
-                  : calculateETA(
-                      newDistance,
-                    ),
-            };
-          }),
-      );
-    }, 1000);
-
-    return () =>
-      window.clearInterval(timer);
-  }, [
-    tracking,
-    trackingStep,
-    selectedAmbulanceId,
-  ]);
-
-  const dispatchNearestAmbulance =
-    () => {
-      if (!nearestAmbulance) {
-        return;
-      }
-
-      setSelectedAmbulanceId(
-        nearestAmbulance.id,
-      );
-
-      setTrackingStep(0);
-
-      setAmbulances(
-        (current) =>
-          current.map((ambulance) =>
-            ambulance.id ===
-            nearestAmbulance.id
-              ? {
-                  ...ambulance,
-                  status: 'ASSIGNED',
-                  speed: 0,
-                  eta: calculateETA(
-                    nearestAmbulance.distance,
-                  ),
-                }
-              : ambulance,
-          ),
-      );
-
-      setTracking(true);
-    };
-
-  const dispatchTeam = (
-    teamId: string,
-  ) => {
-    setDispatchedTeams((current) =>
-      current.includes(teamId)
-        ? current
-        : [...current, teamId],
+    return ambulanceResponders.find(
+      (responder) =>
+        responder.id ===
+        incident.assignedResponderId,
     );
-  };
-
-  const currentDistance =
-    selectedAmbulance
-      ? calculateDistance(
-          selectedAmbulance.lat,
-          selectedAmbulance.lng,
-          VICTIM.lat,
-          VICTIM.lng,
-        )
-      : 0;
+  }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-navy-700 bg-navy-900 shadow-2xl">
-      {/* HEADER */}
+    <div className="space-y-6">
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
-      <div className="border-b border-navy-700 bg-gradient-to-r from-navy-900 via-navy-800 to-navy-900 px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emergency-600/20">
-              <Siren className="h-5 w-5 text-emergency-400" />
-            </div>
+      <section className="relative overflow-hidden rounded-3xl border border-navy-700 bg-gradient-to-br from-navy-900 via-navy-950 to-black p-5 sm:p-7">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/10 blur-3xl" />
 
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-accent-500/10 blur-3xl" />
+
+        <div className="relative">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">
-                ALERTX COMMAND CENTER
-              </h2>
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-secondary-400 transition hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              )}
 
-              <p className="text-xs text-secondary-400">
-                Multi-Agency Emergency Response
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400">
+                  <Ambulance className="h-6 w-6" />
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-400">
+                    AlertX Medical Network
+                  </p>
+
+                  <h1 className="mt-1 text-2xl font-black text-white sm:text-3xl">
+                    Ambulance Command Centre
+                  </h1>
+                </div>
+              </div>
+
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-secondary-400">
+                Monitor medical emergencies, coordinate ambulance
+                responders and track emergency response activity
+                from a single command centre.
               </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+            <div className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-400" />
 
-            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-              Live System
-            </span>
+              <span className="text-sm font-semibold text-green-300">
+                Command Centre Online
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* RESPONSE TEAMS */}
+      {/* =====================================================
+          STATISTICS
+      ===================================================== */}
 
-      <div className="border-b border-navy-700 p-4">
-        <div className="mb-3 flex items-center justify-between">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label="Active Emergencies"
+          value={activeIncidents.length}
+          icon={ShieldAlert}
+          accent="text-red-400"
+        />
+
+        <StatCard
+          label="Critical"
+          value={criticalIncidents.length}
+          icon={Siren}
+          accent="text-orange-400"
+        />
+
+        <StatCard
+          label="Ambulances Available"
+          value={availableAmbulances.length}
+          icon={Ambulance}
+          accent="text-green-400"
+        />
+
+        <StatCard
+          label="Responding"
+          value={respondingIncidents.length}
+          icon={Navigation}
+          accent="text-blue-400"
+        />
+      </section>
+
+      {/* =====================================================
+          LIVE STATUS
+      ===================================================== */}
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-green-400" />
+
+              <h2 className="font-bold text-white">
+                System Status
+              </h2>
+            </div>
+
+            <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-bold uppercase text-green-300">
+              Live
+            </span>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <StatusRow
+              label="Emergency Network"
+              value="Operational"
+              online
+            />
+
+            <StatusRow
+              label="Ambulance Dispatch"
+              value="Operational"
+              online
+            />
+
+            <StatusRow
+              label="Location Services"
+              value="Operational"
+              online
+            />
+
+            <StatusRow
+              label="AI Analysis"
+              value="Operational"
+              online
+            />
+          </div>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center gap-2">
+            <Ambulance className="h-5 w-5 text-red-400" />
+
+            <h2 className="font-bold text-white">
+              Ambulance Fleet
+            </h2>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {ambulanceResponders.length === 0 ? (
+              <EmptyState
+                icon={Ambulance}
+                text="No ambulance units registered."
+              />
+            ) : (
+              ambulanceResponders
+                .slice(0, 4)
+                .map((responder) => (
+                  <div
+                    key={responder.id}
+                    className="flex items-center justify-between rounded-xl border border-navy-700 bg-navy-900/60 p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-navy-800">
+                        <Ambulance className="h-4 w-4 text-red-400" />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {responder.name}
+                        </p>
+
+                        <p className="text-[11px] text-secondary-500">
+                          {responder.location}
+                        </p>
+                      </div>
+                    </div>
+
+                    <ResponderStatus
+                      status={responder.status}
+                    />
+                  </div>
+                ))
+            )}
+          </div>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-5 w-5 text-accent-400" />
+
+            <h2 className="font-bold text-white">
+              Response Overview
+            </h2>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <Metric
+              label="New emergencies"
+              value={
+                activeIncidents.filter(
+                  (incident) =>
+                    incident.status === 'NEW',
+                ).length
+              }
+            />
+
+            <Metric
+              label="Assigned"
+              value={
+                activeIncidents.filter(
+                  (incident) =>
+                    incident.status === 'ASSIGNED',
+                ).length
+              }
+            />
+
+            <Metric
+              label="Responding"
+              value={respondingIncidents.length}
+            />
+
+            <Metric
+              label="Resolved"
+              value={
+                incidents.filter(
+                  (incident) =>
+                    incident.status === 'RESOLVED',
+                ).length
+              }
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          MAP / LOCATION AREA
+      ===================================================== */}
+
+      <section className="card overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-navy-700 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-bold text-white">
-              Multi-Agency Response
-            </h3>
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-red-400" />
 
-            <p className="text-[10px] text-secondary-400">
-              Coordinate all emergency services
+              <h2 className="font-bold text-white">
+                Emergency Response Map
+              </h2>
+            </div>
+
+            <p className="mt-1 text-xs text-secondary-500">
+              Active emergency locations and ambulance units.
             </p>
           </div>
 
-          <Radio className="h-4 w-4 text-cyan-400" />
+          <span className="inline-flex w-fit items-center gap-2 rounded-lg border border-navy-700 bg-navy-900 px-3 py-2 text-xs text-secondary-400">
+            <span className="h-2 w-2 rounded-full bg-red-400" />
+            {activeIncidents.length} active
+          </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {RESPONSE_TEAMS.map(
-            (team) => {
-              const Icon = team.icon;
-              const dispatched =
-                dispatchedTeams.includes(
-                  team.id,
-                );
-
-              return (
-                <div
-                  key={team.id}
-                  className={`rounded-xl border p-3 transition ${
-                    dispatched
-                      ? 'border-emerald-500/40 bg-emerald-500/5'
-                      : 'border-navy-700 bg-navy-800'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-navy-900">
-                      <Icon className="h-5 w-5 text-secondary-300" />
-                    </div>
-
-                    <span
-                      className={`text-[8px] font-bold uppercase ${
-                        dispatched
-                          ? 'text-emerald-400'
-                          : 'text-cyan-400'
-                      }`}
-                    >
-                      {dispatched
-                        ? 'DISPATCHED'
-                        : team.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 text-xs font-bold text-white">
-                    {team.name}
-                  </div>
-
-                  <div className="mt-1 text-[9px] text-secondary-400">
-                    ETA {team.eta} min
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      dispatchTeam(
-                        team.id,
-                      )
-                    }
-                    disabled={dispatched}
-                    className={`mt-2 w-full rounded-md px-2 py-1.5 text-[9px] font-bold ${
-                      dispatched
-                        ? 'cursor-default bg-emerald-500/10 text-emerald-400'
-                        : 'bg-navy-700 text-white hover:bg-navy-600'
-                    }`}
-                  >
-                    {dispatched
-                      ? 'ACTIVE'
-                      : 'DISPATCH'}
-                  </button>
-                </div>
-              );
-            },
-          )}
-        </div>
-      </div>
-
-      {/* MAIN */}
-
-      <div className="grid gap-4 p-4 lg:grid-cols-[1.5fr_1fr]">
-        {/* MAP */}
-
-        <div className="relative min-h-[430px] overflow-hidden rounded-xl border border-navy-700 bg-[#07101d]">
+        <div className="relative h-[320px] overflow-hidden bg-[#07111f]">
+          {/* Grid */}
           <div
-            className="absolute inset-0 opacity-20"
+            className="absolute inset-0 opacity-30"
             style={{
               backgroundImage:
-                'linear-gradient(rgba(100,150,200,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(100,150,200,0.12) 1px, transparent 1px)',
-              backgroundSize:
-                '40px 40px',
+                'linear-gradient(rgba(47,128,237,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(47,128,237,0.12) 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
             }}
           />
 
-          <div className="absolute left-3 top-3 z-10 rounded-lg border border-navy-700 bg-navy-900/90 px-3 py-2 backdrop-blur">
-            <div className="flex items-center gap-2">
-              <Navigation className="h-4 w-4 text-cyan-400" />
+          {/* Radar rings */}
+          <div className="absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent-500/10" />
 
-              <div>
-                <div className="text-xs font-bold text-white">
-                  LIVE RESPONSE MAP
-                </div>
+          <div className="absolute left-1/2 top-1/2 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent-500/10" />
 
-                <div className="text-[9px] text-secondary-400">
-                  Hyderabad Emergency Zone
-                </div>
-              </div>
-            </div>
-          </div>
+          <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent-500/10" />
 
-          <div className="absolute right-3 top-3 z-10 rounded-lg border border-navy-700 bg-navy-900/90 px-3 py-2 backdrop-blur">
-            <div className="text-[9px] uppercase text-secondary-400">
-              Traffic
-            </div>
+          {/* Emergency markers */}
+          {activeIncidents
+            .filter(
+              (incident) =>
+                incident.coords,
+            )
+            .slice(0, 8)
+            .map((incident, index) => {
+              const positions = [
+                { left: '22%', top: '32%' },
+                { left: '67%', top: '25%' },
+                { left: '75%', top: '63%' },
+                { left: '37%', top: '68%' },
+                { left: '52%', top: '43%' },
+                { left: '18%', top: '70%' },
+                { left: '83%', top: '42%' },
+                { left: '46%', top: '20%' },
+              ];
 
-            <div className="text-xs font-bold text-amber-400">
-              Moderate
-            </div>
-          </div>
-
-          {/* ROADS */}
-
-          <div className="absolute left-[10%] top-[50%] h-[3px] w-[80%] rotate-[12deg] bg-slate-600/60" />
-
-          <div className="absolute left-[40%] top-[10%] h-[90%] w-[3px] rotate-[18deg] bg-slate-600/50" />
-
-          <div className="absolute left-[15%] top-[30%] h-[2px] w-[70%] -rotate-[25deg] bg-slate-700/70" />
-
-          {/* INCIDENT */}
-
-          <div className="absolute left-[52%] top-[51%] z-20 -translate-x-1/2 -translate-y-1/2">
-            <div className="relative">
-              <div className="absolute -inset-5 animate-ping rounded-full bg-emergency-500/20" />
-
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-full border-4 border-emergency-300 bg-emergency-600 shadow-lg shadow-emergency-500/40">
-                <MapPin className="h-6 w-6 text-white" />
-              </div>
-            </div>
-
-            <div className="absolute left-1/2 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-emergency-500/30 bg-navy-900 px-2 py-1 text-[9px] font-bold text-emergency-300">
-              EMERGENCY LOCATION
-            </div>
-          </div>
-
-          {/* AMBULANCES */}
-
-          {ambulanceDistances.map(
-            (ambulance, index) => {
-              const isSelected =
-                ambulance.id ===
-                selectedAmbulanceId;
-
-              const left =
-                25 +
-                ((ambulance.lng -
-                  78.48) /
-                  0.04) *
-                  50;
-
-              const top =
-                25 +
-                ((17.47 -
-                  ambulance.lat) /
-                  0.05) *
-                  50;
+              const position =
+                positions[
+                  index %
+                    positions.length
+                ];
 
               return (
                 <button
-                  key={ambulance.id}
+                  key={incident.id}
                   type="button"
                   onClick={() =>
-                    setSelectedAmbulanceId(
-                      ambulance.id,
+                    onViewIncident?.(
+                      incident.id,
                     )
                   }
-                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    left: `${Math.min(
-                      82,
-                      Math.max(
-                        18,
-                        left,
-                      ),
-                    )}%`,
-                    top: `${Math.min(
-                      82,
-                      Math.max(
-                        18,
-                        top,
-                      ),
-                    )}%`,
-                  }}
-                  aria-label={`Select ${ambulance.id}`}
+                  className="group absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                  style={position}
+                  title={incident.location}
                 >
-                  <div
-                    className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 shadow-lg transition ${
-                      isSelected
-                        ? 'border-cyan-300 bg-cyan-600 shadow-cyan-500/40'
-                        : 'border-white/50 bg-slate-700'
-                    }`}
-                  >
-                    <Ambulance className="h-5 w-5 text-white" />
+                  <span className="absolute -inset-2 animate-ping rounded-full bg-red-500/20" />
 
-                    {isSelected &&
-                      tracking && (
-                        <span className="absolute -inset-2 animate-ping rounded-full border border-cyan-400/40" />
-                      )}
-                  </div>
+                  <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-red-400/50 bg-red-500/20 text-red-300 shadow-lg shadow-red-500/20">
+                    <Siren className="h-4 w-4" />
+                  </span>
 
-                  <div className="mt-1 whitespace-nowrap rounded bg-navy-950/95 px-1.5 py-0.5 text-[8px] font-bold text-white">
-                    {ambulance.id}
-                  </div>
-
-                  {index === 0 && (
-                    <div className="mt-0.5 rounded bg-emerald-500/20 px-1 text-[7px] font-bold text-emerald-400">
-                      NEAREST
-                    </div>
-                  )}
+                  <span className="absolute left-1/2 top-full mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-navy-700 bg-navy-950 px-2 py-1 text-[9px] text-white group-hover:block">
+                    {incident.type}
+                  </span>
                 </button>
               );
-            },
-          )}
+            })}
 
-          {/* LEGEND */}
+          {/* Ambulance markers */}
+          {ambulanceResponders
+            .filter(
+              (responder) =>
+                responder.status !==
+                'Offline',
+            )
+            .slice(0, 6)
+            .map((responder, index) => {
+              const positions = [
+                { left: '30%', top: '25%' },
+                { left: '72%', top: '75%' },
+                { left: '60%', top: '58%' },
+                { left: '25%', top: '55%' },
+                { left: '82%', top: '30%' },
+                { left: '45%', top: '80%' },
+              ];
 
-          <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap gap-2">
-            <MapLegend
-              label="Emergency"
-              className="bg-emergency-600"
-            >
-              <MapPin className="h-3 w-3 text-white" />
-            </MapLegend>
+              const position =
+                positions[
+                  index %
+                    positions.length
+                ];
 
-            <MapLegend
-              label="Ambulance"
-              className="bg-cyan-600"
-            >
-              <Ambulance className="h-3 w-3 text-white" />
-            </MapLegend>
-
-            <MapLegend
-              label="Police"
-              className="bg-blue-600"
-            >
-              <Shield className="h-3 w-3 text-white" />
-            </MapLegend>
-
-            <MapLegend
-              label="Fire"
-              className="bg-orange-600"
-            >
-              <Flame className="h-3 w-3 text-white" />
-            </MapLegend>
-          </div>
-        </div>
-
-        {/* RESPONSE PANEL */}
-
-        <div className="space-y-3">
-          {/* NEAREST */}
-
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <LocateFixed className="h-4 w-4 text-cyan-400" />
-
-                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-                  Nearest Ambulance
-                </span>
-              </div>
-
-              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-400">
-                AUTO SELECTED
-              </span>
-            </div>
-
-            {nearestAmbulance && (
-              <>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600/20">
-                    <Ambulance className="h-6 w-6 text-cyan-400" />
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="text-base font-bold text-white">
-                      {nearestAmbulance.id}
-                    </div>
-
-                    <div className="flex items-center gap-1 text-xs text-secondary-400">
-                      <UserRound className="h-3 w-3" />
-
-                      {nearestAmbulance.driver}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <InfoMetric
-                    label="Distance"
-                    value={`${nearestAmbulance.distance.toFixed(2)} km`}
-                  />
-
-                  <InfoMetric
-                    label="ETA"
-                    value={`${calculateETA(nearestAmbulance.distance)} min`}
-                  />
-
-                  <InfoMetric
-                    label="Status"
-                    value={getStatusLabel(
-                      nearestAmbulance.status,
-                    )}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* DISPATCH */}
-
-          <div className="rounded-xl border border-navy-700 bg-navy-800 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Zap className="h-4 w-4 text-yellow-400" />
-
-              <span className="text-xs font-bold uppercase tracking-wider text-white">
-                Automatic Dispatch
-              </span>
-            </div>
-
-            {activeIncident ? (
-              <div className="mb-3 rounded-lg border border-navy-700 bg-navy-900 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-secondary-400">
-                    Highest Priority
-                  </span>
-
-                  <span className="font-mono text-xs font-bold text-emergency-400">
-                    {activeIncident.id}
-                  </span>
-                </div>
-
-                <div className="mt-1 text-sm font-bold text-white">
-                  {activeIncident.type}
-                </div>
-
-                <div className="mt-1 text-[10px] text-secondary-400">
-                  {activeIncident.location ||
-                    'Location unavailable'}
-                </div>
-              </div>
-            ) : (
-              <div className="mb-3 rounded-lg border border-navy-700 bg-navy-900 p-3 text-xs text-secondary-400">
-                No active incident selected.
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={
-                dispatchNearestAmbulance
-              }
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-emergency-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emergency-500 active:scale-[0.98]"
-            >
-              <Siren className="h-4 w-4" />
-
-              {tracking
-                ? 'Ambulance Tracking Active'
-                : 'Dispatch Nearest Ambulance'}
-            </button>
-          </div>
-
-          {/* SELECTED */}
-
-          {selectedAmbulance && (
-            <div className="rounded-xl border border-navy-700 bg-navy-800 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-secondary-400">
-                    Tracking Unit
-                  </div>
-
-                  <div className="mt-1 text-lg font-bold text-white">
-                    {selectedAmbulance.id}
-                  </div>
-                </div>
-
+              return (
                 <div
-                  className={`rounded-full border border-current/20 bg-current/10 px-2 py-1 text-[9px] font-bold uppercase ${getStatusColor(
-                    selectedAmbulance.status,
-                  )}`}
+                  key={responder.id}
+                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                  style={position}
+                  title={responder.name}
                 >
-                  {getStatusLabel(
-                    selectedAmbulance.status,
-                  )}
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border border-blue-400/40 bg-blue-500/20 text-blue-300">
+                    <Ambulance className="h-3.5 w-3.5" />
+                  </div>
                 </div>
-              </div>
+              );
+            })}
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <InfoMetric
-                  label="Driver"
-                  value={
-                    selectedAmbulance.driver
-                  }
-                />
+          {/* Centre */}
+          <div className="absolute bottom-4 left-4 rounded-xl border border-navy-700 bg-navy-950/90 px-3 py-2 backdrop-blur">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-accent-400" />
 
-                <InfoMetric
-                  label="Distance"
-                  value={`${currentDistance.toFixed(2)} km`}
-                />
-
-                <InfoMetric
-                  label="Speed"
-                  value={`${selectedAmbulance.speed} km/h`}
-                />
-
-                <InfoMetric
-                  label="ETA"
-                  value={`${selectedAmbulance.eta} min`}
-                />
-              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-secondary-400">
+                Command Centre
+              </span>
             </div>
-          )}
+          </div>
+
+          {/* Legend */}
+          <div className="absolute bottom-4 right-4 flex gap-2 rounded-xl border border-navy-700 bg-navy-950/90 p-2 backdrop-blur">
+            <LegendItem
+              color="bg-red-400"
+              label="Emergency"
+            />
+
+            <LegendItem
+              color="bg-blue-400"
+              label="Ambulance"
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* TRACKING */}
+      {/* =====================================================
+          ACTIVE EMERGENCIES
+      ===================================================== */}
 
-      <div className="border-t border-navy-700 p-4">
-        <div className="mb-4 flex items-center justify-between">
+      <section>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-sm font-bold text-white">
-              Live Ambulance Tracking
-            </h3>
+            <h2 className="text-xl font-bold text-white">
+              Active Medical Emergencies
+            </h2>
 
-            <p className="text-[10px] text-secondary-400">
-              Real-time response progression
+            <p className="mt-1 text-sm text-secondary-500">
+              Prioritize and coordinate active ambulance
+              responses.
             </p>
           </div>
 
-          {tracking && (
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
-              <Radio className="h-3.5 w-3.5 animate-pulse" />
-              TRACKING LIVE
-            </div>
-          )}
+          <span className="text-xs font-semibold uppercase tracking-wider text-secondary-500">
+            {activeIncidents.length} incidents
+          </span>
+        </div>
 
-          {!tracking &&
-            trackingStep >= 4 && (
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                ARRIVED
-              </div>
+        {activeIncidents.length === 0 ? (
+          <div className="card flex flex-col items-center justify-center p-10 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/10 text-green-400">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+
+            <h3 className="mt-4 font-bold text-white">
+              No active emergencies
+            </h3>
+
+            <p className="mt-1 max-w-sm text-sm text-secondary-500">
+              The ambulance network currently has no active
+              medical emergencies requiring coordination.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activeIncidents.map(
+              (incident) => (
+                <IncidentCard
+                  key={incident.id}
+                  incident={incident}
+                  responder={getResponderForIncident(
+                    incident,
+                  )}
+                  onView={() =>
+                    onViewIncident?.(
+                      incident.id,
+                    )
+                  }
+                  onAccept={() =>
+                    onAcceptIncident?.(
+                      incident.id,
+                    )
+                  }
+                  onRespond={() =>
+                    onMarkResponding?.(
+                      incident.id,
+                    )
+                  }
+                  onResolve={() =>
+                    onResolveIncident?.(
+                      incident.id,
+                    )
+                  }
+                  severityClass={getSeverityClass(
+                    incident.severity,
+                  )}
+                  statusClass={getStatusClass(
+                    incident.status,
+                  )}
+                  formatTime={
+                    formatTime
+                  }
+                />
+              ),
             )}
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-4">
-          <TrackingStep
-            number="01"
-            title="Assigned"
-            active={trackingStep >= 0}
-            completed={trackingStep > 0}
-          />
-
-          <TrackingStep
-            number="02"
-            title="Dispatched"
-            active={trackingStep >= 1}
-            completed={trackingStep > 1}
-          />
-
-          <TrackingStep
-            number="03"
-            title="En Route"
-            active={trackingStep >= 2}
-            completed={trackingStep > 2}
-          />
-
-          <TrackingStep
-            number="04"
-            title="Arrived"
-            active={trackingStep >= 4}
-            completed={trackingStep >= 4}
-          />
-        </div>
-      </div>
-
-      {/* SUMMARY */}
-
-      <div className="border-t border-navy-700 bg-navy-950/60 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">
-              <Activity className="h-4 w-4 text-purple-400" />
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-white">
-                AI Emergency Summary
-              </div>
-
-              <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-secondary-400">
-                {activeIncident
-                  ? `${activeIncident.type} detected at ${
-                      activeIncident.location ||
-                      'emergency location'
-                    }. ${
-                      nearestAmbulance?.id ||
-                      'Nearest ambulance'
-                    } is ${
-                      nearestAmbulance
-                        ? nearestAmbulance.distance.toFixed(
-                            1,
-                          )
-                        : '—'
-                    } km away. ${
-                      tracking
-                        ? 'Ambulance dispatched and live tracking is active.'
-                        : trackingStep >= 4
-                          ? 'Ambulance has arrived.'
-                          : 'Awaiting dispatch.'
-                    }`
-                  : 'Emergency monitoring active. Multi-agency response network ready.'}
-              </p>
-            </div>
           </div>
-
-          <div className="shrink-0 rounded-lg border border-navy-700 bg-navy-800 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Timer className="h-4 w-4 text-secondary-400" />
-
-              <span className="text-[10px] text-secondary-400">
-                System
-              </span>
-
-              <span className="text-xs font-bold text-emerald-400">
-                OPERATIONAL
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MapLegend({
-  children,
-  label,
-  className,
-}: {
-  children: React.ReactNode;
-  label: string;
-  className: string;
-}) {
-  return (
-    <div className="flex items-center gap-1.5 rounded-md border border-navy-700 bg-navy-900/90 px-2 py-1 backdrop-blur">
-      <span
-        className={`flex h-4 w-4 items-center justify-center rounded-full ${className}`}
-      >
-        {children}
-      </span>
-
-      <span className="text-[9px] text-secondary-300">
-        {label}
-      </span>
+        )}
+      </section>
     </div>
   );
 }
 
-function InfoMetric({
+/* =========================================================
+   STAT CARD
+========================================================= */
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Activity;
+  accent: string;
+}) {
+  return (
+    <div className="card p-4 sm:p-5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-secondary-500 sm:text-xs">
+          {label}
+        </span>
+
+        <Icon
+          className={`h-4 w-4 ${accent}`}
+        />
+      </div>
+
+      <p className="mt-2 text-2xl font-black text-white sm:text-3xl">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* =========================================================
+   STATUS ROW
+========================================================= */
+
+function StatusRow({
+  label,
+  value,
+  online,
+}: {
+  label: string;
+  value: string;
+  online?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-navy-900/60 px-3 py-2.5">
+      <span className="text-xs text-secondary-400">
+        {label}
+      </span>
+
+      <div className="flex items-center gap-2">
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            online
+              ? 'bg-green-400'
+              : 'bg-red-400'
+          }`}
+        />
+
+        <span className="text-xs font-semibold text-secondary-300">
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   METRIC
+========================================================= */
+
+function Metric({
   label,
   value,
 }: {
   label: string;
-  value: string;
+  value: number;
 }) {
   return (
-    <div className="rounded-lg border border-navy-700 bg-navy-900 p-2">
-      <div className="text-[9px] uppercase tracking-wider text-secondary-500">
+    <div className="flex items-center justify-between border-b border-navy-800 pb-3 last:border-0 last:pb-0">
+      <span className="text-sm text-secondary-400">
         {label}
-      </div>
+      </span>
 
-      <div className="mt-0.5 truncate text-xs font-bold text-white">
+      <span className="font-bold text-white">
         {value}
-      </div>
+      </span>
     </div>
   );
 }
 
-function TrackingStep({
-  number,
-  title,
-  active,
-  completed,
+/* =========================================================
+   RESPONDER STATUS
+========================================================= */
+
+function ResponderStatus({
+  status,
 }: {
-  number: string;
-  title: string;
-  active: boolean;
-  completed: boolean;
+  status: Responder['status'];
+}) {
+  const classes =
+    status === 'Available'
+      ? 'bg-green-500/10 text-green-300 border-green-500/20'
+      : status === 'Responding'
+        ? 'bg-orange-500/10 text-orange-300 border-orange-500/20'
+        : status === 'Busy'
+          ? 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20'
+          : 'bg-navy-800 text-secondary-500 border-navy-700';
+
+  return (
+    <span
+      className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase ${classes}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+/* =========================================================
+   INCIDENT CARD
+========================================================= */
+
+function IncidentCard({
+  incident,
+  responder,
+  onView,
+  onAccept,
+  onRespond,
+  onResolve,
+  severityClass,
+  statusClass,
+  formatTime,
+}: {
+  incident: Incident;
+  responder?: Responder;
+  onView: () => void;
+  onAccept: () => void;
+  onRespond: () => void;
+  onResolve: () => void;
+  severityClass: string;
+  statusClass: string;
+  formatTime: (
+    timestamp: number,
+  ) => string;
 }) {
   return (
     <div
-      className={`relative rounded-lg border p-3 transition ${
-        active
-          ? 'border-cyan-500/40 bg-cyan-500/5'
-          : 'border-navy-700 bg-navy-900'
+      className={`card overflow-hidden ${
+        incident.severity ===
+        'CRITICAL'
+          ? 'border-red-500/30'
+          : ''
       }`}
     >
-      <div className="flex items-center gap-2">
-        <div
-          className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold ${
-            completed
-              ? 'bg-emerald-500 text-white'
-              : active
-                ? 'bg-cyan-600 text-white'
-                : 'bg-navy-700 text-secondary-500'
-          }`}
-        >
-          {completed ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            number
+      {/* Top */}
+      <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${severityClass}`}
+            >
+              {incident.severity}
+            </span>
+
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}
+            >
+              {incident.status}
+            </span>
+
+            {incident.urgent && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-red-300">
+                <Zap className="h-3 w-3" />
+                URGENT
+              </span>
+            )}
+          </div>
+
+          <h3 className="mt-3 text-lg font-bold text-white">
+            {incident.type}
+          </h3>
+
+          <p className="mt-1 text-sm text-secondary-400">
+            {incident.description ||
+              'Emergency reported through AlertX.'}
+          </p>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <InfoItem
+              icon={User}
+              label="Reporter"
+              value={
+                incident.name ||
+                'Unknown'
+              }
+            />
+
+            <InfoItem
+              icon={Clock3}
+              label="Reported"
+              value={formatTime(
+                incident.createdAt,
+              )}
+            />
+
+            <InfoItem
+              icon={MapPin}
+              label="Location"
+              value={
+                incident.location ||
+                'Location unavailable'
+              }
+            />
+
+            <InfoItem
+              icon={Phone}
+              label="Contact"
+              value={
+                incident.phone ||
+                'Not available'
+              }
+            />
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-row gap-2 lg:flex-col">
+          <button
+            type="button"
+            onClick={onView}
+            className="rounded-xl border border-navy-700 bg-navy-900 px-3 py-2 text-xs font-semibold text-secondary-300 transition hover:border-accent-500 hover:text-white"
+          >
+            View details
+          </button>
+
+          {incident.coords && (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${incident.coords.lat},${incident.coords.lng}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-1 rounded-xl border border-navy-700 bg-navy-900 px-3 py-2 text-xs font-semibold text-secondary-300 transition hover:border-accent-500 hover:text-white"
+            >
+              <Navigation className="h-3.5 w-3.5" />
+              Map
+            </a>
           )}
         </div>
+      </div>
 
-        <div>
-          <div
-            className={`text-xs font-bold ${
-              active
-                ? 'text-white'
-                : 'text-secondary-500'
-            }`}
-          >
-            {title}
-          </div>
+      {/* Assigned responder */}
+      {responder && (
+        <div className="border-t border-navy-800 bg-navy-900/40 px-4 py-3 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                <Ambulance className="h-4 w-4" />
+              </div>
 
-          <div className="text-[8px] uppercase tracking-wider text-secondary-500">
-            {active
-              ? completed
-                ? 'Complete'
-                : 'Active'
-              : 'Waiting'}
+              <div>
+                <p className="text-xs font-semibold text-white">
+                  {responder.name}
+                </p>
+
+                <p className="text-[10px] text-secondary-500">
+                  {responder.location}
+                </p>
+              </div>
+            </div>
+
+            <ResponderStatus
+              status={responder.status}
+            />
           </div>
         </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-2 border-t border-navy-800 p-4 sm:p-5">
+        {incident.status ===
+          'NEW' && (
+          <button
+            type="button"
+            onClick={onAccept}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-500"
+          >
+            <Ambulance className="h-4 w-4" />
+            Dispatch Ambulance
+          </button>
+        )}
+
+        {incident.status ===
+          'ASSIGNED' && (
+          <button
+            type="button"
+            onClick={onRespond}
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-orange-500"
+          >
+            <Navigation className="h-4 w-4" />
+            Start Response
+          </button>
+        )}
+
+        {incident.status ===
+          'RESPONDING' && (
+          <button
+            type="button"
+            onClick={onResolve}
+            className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-green-500"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Mark Resolved
+          </button>
+        )}
+
+        {incident.status ===
+          'ESCALATED' && (
+          <button
+            type="button"
+            onClick={onView}
+            className="inline-flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-300"
+          >
+            <ShieldAlert className="h-4 w-4" />
+            Review Escalation
+          </button>
+        )}
+
+        {incident.status ===
+          'SUSPICIOUS' && (
+          <button
+            type="button"
+            onClick={onView}
+            className="inline-flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 text-xs font-bold text-yellow-300"
+          >
+            <XCircle className="h-4 w-4" />
+            Review Incident
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onView}
+          className="inline-flex items-center gap-2 rounded-xl border border-navy-700 bg-navy-900 px-4 py-2.5 text-xs font-semibold text-secondary-300 transition hover:text-white"
+        >
+          <Users className="h-4 w-4" />
+          Incident timeline
+        </button>
       </div>
     </div>
   );
 }
+
+/* =========================================================
+   INFO ITEM
+========================================================= */
+
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof User;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2 rounded-lg bg-navy-900/50 p-2.5">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-secondary-500" />
+
+      <div className="min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-secondary-600">
+          {label}
+        </p>
+
+        <p className="mt-0.5 truncate text-xs text-secondary-300">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   LEGEND
+========================================================= */
+
+function LegendItem({
+  color,
+  label,
+}: {
+  color: string;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={`h-2 w-2 rounded-full ${color}`}
+      />
+
+      <span className="text-[9px] text-secondary-400">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* =========================================================
+   EMPTY STATE
+========================================================= */
+
+function EmptyState({
+  icon: Icon,
+  text,
+}: {
+  icon: typeof Activity;
+  text: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-6 text-center">
+      <Icon className="h-7 w-7 text-secondary-600" />
+
+      <p className="mt-2 text-xs text-secondary-500">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+export default AmbulanceCommandCentre;

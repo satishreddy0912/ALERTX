@@ -1,39 +1,52 @@
-import { useMemo, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import {
-  Activity,
-  AlertOctagon,
-  AlertTriangle,
-  Ambulance,
-  Ban,
-  Building,
-  Car,
-  Check,
-  Clock,
-  Eye,
-  Flame,
-  MapPin,
   ShieldCheck,
   Siren,
+  MapPin,
+  Clock,
+  Eye,
+  Check,
+  AlertTriangle,
+  Ban,
+  Activity,
+  Ambulance,
+  AlertOctagon,
   X,
+  Car,
+  Flame,
+  Building,
+  Phone,
+  Users,
+  Radio,
 } from 'lucide-react';
 
 import type {
   Incident,
-  IncidentSource,
   Responder,
+  IncidentSource,
 } from '@/types';
 
 import {
-  CredibilityBadge,
-  PriorityScore,
   SeverityBadge,
   StatusBadge,
+  PriorityScore,
+  CredibilityBadge,
 } from '@/components/Badges';
 
 import { formatRelative } from '@/lib/format';
 
 import type { AdminSession } from '@/lib/store';
+
+import {
+  getEmergencyContacts,
+  type EmergencyContact,
+} from '@/lib/emergencyContacts';
 
 import HospitalMap from '@/components/HospitalMap';
 
@@ -101,24 +114,42 @@ export function AdminDashboardPage({
   const [assigningId, setAssigningId] =
     useState<string | null>(null);
 
-  const visibleIncidents = useMemo(
-    () =>
-      incidents.filter(
-        (incident) =>
-          incident.status !==
-          'ESCALATED',
-      ),
-    [incidents],
-  );
+  /*
+   * FAMILY EMERGENCY CONTACTS
+   *
+   * These are contacts that the user saved before
+   * the emergency. They are NOT required during Fast SOS.
+   */
+  const [
+    emergencyContacts,
+    setEmergencyContacts,
+  ] = useState<EmergencyContact[]>([]);
 
+  useEffect(() => {
+    setEmergencyContacts(
+      getEmergencyContacts(),
+    );
+  }, []);
+
+  /*
+   * Hide escalated incidents.
+   */
+  const visibleIncidents = useMemo(() => {
+    return incidents.filter(
+      (incident) =>
+        incident.status !== 'ESCALATED',
+    );
+  }, [incidents]);
+
+  /*
+   * Dashboard statistics.
+   */
   const stats = useMemo(() => {
     const active =
       visibleIncidents.filter(
         (incident) =>
-          incident.status !==
-            'RESOLVED' &&
-          incident.status !==
-            'SUSPICIOUS',
+          incident.status !== 'RESOLVED' &&
+          incident.status !== 'SUSPICIOUS',
       );
 
     return {
@@ -126,8 +157,7 @@ export function AdminDashboardPage({
 
       critical: active.filter(
         (incident) =>
-          incident.severity ===
-          'CRITICAL',
+          incident.severity === 'CRITICAL',
       ).length,
 
       high: active.filter(
@@ -144,22 +174,19 @@ export function AdminDashboardPage({
 
       responding: active.filter(
         (incident) =>
-          incident.status ===
-          'RESPONDING',
+          incident.status === 'RESPONDING',
       ).length,
 
       resolvedToday:
         visibleIncidents.filter(
           (incident) =>
-            incident.status ===
-            'RESOLVED',
+            incident.status === 'RESOLVED',
         ).length,
 
       availableResponders:
         responders.filter(
           (responder) =>
-            responder.status ===
-            'Available',
+            responder.status === 'Available',
         ).length,
     };
   }, [
@@ -167,70 +194,104 @@ export function AdminDashboardPage({
     responders,
   ]);
 
-  const sortedIncidents = useMemo(
-    () => {
-      const weight = (
-        incident: Incident,
-      ) => {
-        let value =
-          incident.priority;
+  /*
+   * Sort incidents by priority.
+   */
+  const sortedIncidents = useMemo(() => {
+    const weight = (
+      incident: Incident,
+    ) => {
+      let value =
+        incident.priority;
 
-        if (incident.urgent) {
-          value += 150;
-        }
+      if (incident.urgent) {
+        value += 150;
+      }
 
-        if (
-          incident.status ===
-          'VERIFICATION_REQUIRED'
-        ) {
-          value += 30;
-        }
+      if (
+        incident.status ===
+        'VERIFICATION_REQUIRED'
+      ) {
+        value += 30;
+      }
 
-        if (
-          incident.status === 'NEW'
-        ) {
-          value += 20;
-        }
+      if (
+        incident.status === 'NEW'
+      ) {
+        value += 20;
+      }
 
-        if (
-          incident.status ===
-            'RESOLVED' ||
-          incident.status ===
-            'SUSPICIOUS'
-        ) {
-          value -= 100;
-        }
+      if (
+        incident.status === 'RESOLVED' ||
+        incident.status === 'SUSPICIOUS'
+      ) {
+        value -= 100;
+      }
 
-        return value;
-      };
+      return value;
+    };
 
-      return [...visibleIncidents].sort(
-        (a, b) =>
-          weight(b) - weight(a),
-      );
-    },
-    [visibleIncidents],
-  );
+    return [...visibleIncidents].sort(
+      (a, b) =>
+        weight(b) - weight(a),
+    );
+  }, [visibleIncidents]);
 
+  /*
+   * Available responders.
+   */
   const availableResponders =
     responders.filter(
       (responder) =>
-        responder.status ===
-        'Available',
+        responder.status === 'Available',
     );
 
+  /*
+   * Incident currently being assigned.
+   */
   const assigningIncident =
     assigningId
       ? visibleIncidents.find(
           (incident) =>
-            incident.id ===
-            assigningId,
+            incident.id === assigningId,
         )
       : null;
 
+  /*
+   * Responder type summary.
+   */
+  const responderStats = useMemo(() => {
+    const available = responders.filter(
+      (responder) =>
+        responder.status === 'Available',
+    );
+
+    const countType = (
+      typeName: string,
+    ) =>
+      available.filter(
+        (responder) =>
+          responder.type
+            .toLowerCase()
+            .includes(
+              typeName.toLowerCase(),
+            ),
+      ).length;
+
+    return {
+      ambulance: countType('ambulance'),
+      police: countType('police'),
+      fire: countType('fire'),
+      rescue: countType('rescue'),
+      hospital: countType('hospital'),
+    };
+  }, [responders]);
+
   return (
     <div className="space-y-5">
-      {/* HEADER */}
+      {/* =========================================================
+          HEADER
+      ========================================================== */}
 
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-white">
@@ -242,8 +303,8 @@ export function AdminDashboardPage({
         <p className="mt-1 text-sm text-secondary-400">
           Admin coordination view —
           incidents, responders,
-          ambulance, police, fire,
-          rescue and hospitals.
+          ambulances, police, fire,
+          rescue teams and hospitals.
         </p>
 
         {adminSession && (
@@ -263,7 +324,9 @@ export function AdminDashboardPage({
         )}
       </div>
 
-      {/* STATISTICS */}
+      {/* =========================================================
+          STATS
+      ========================================================== */}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         <StatCard
@@ -317,30 +380,199 @@ export function AdminDashboardPage({
         />
       </div>
 
-      {/* MULTI-AGENCY COMMAND CENTER */}
+      {/* =========================================================
+          RESPONSE NETWORK
+      ========================================================== */}
+
+      <section className="rounded-2xl border border-navy-700 bg-navy-900 p-4 shadow-xl">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+              <Radio className="h-5 w-5 text-cyan-400" />
+
+              Emergency Response Network
+            </h2>
+
+            <p className="mt-1 text-xs text-secondary-400">
+              Available emergency organizations and
+              responder units.
+            </p>
+          </div>
+
+          <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+            NETWORK OPERATIONAL
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <ResponseUnitCard
+            icon={
+              <Ambulance className="h-5 w-5 text-cyan-400" />
+            }
+            title="Ambulance"
+            count={
+              responderStats.ambulance
+            }
+            className="border-cyan-500/20 bg-cyan-500/5"
+          />
+
+          <ResponseUnitCard
+            icon={
+              <Siren className="h-5 w-5 text-blue-400" />
+            }
+            title="Police"
+            count={
+              responderStats.police
+            }
+            className="border-blue-500/20 bg-blue-500/5"
+          />
+
+          <ResponseUnitCard
+            icon={
+              <Flame className="h-5 w-5 text-orange-400" />
+            }
+            title="Fire"
+            count={
+              responderStats.fire
+            }
+            className="border-orange-500/20 bg-orange-500/5"
+          />
+
+          <ResponseUnitCard
+            icon={
+              <AlertOctagon className="h-5 w-5 text-purple-400" />
+            }
+            title="Rescue"
+            count={
+              responderStats.rescue
+            }
+            className="border-purple-500/20 bg-purple-500/5"
+          />
+
+          <ResponseUnitCard
+            icon={
+              <Building className="h-5 w-5 text-emerald-400" />
+            }
+            title="Hospital"
+            count={
+              responderStats.hospital
+            }
+            className="border-emerald-500/20 bg-emerald-500/5"
+          />
+        </div>
+      </section>
+
+      {/* =========================================================
+          AMBULANCE COMMAND CENTER
+      ========================================================== */}
 
       <AmbulanceCommandCenter
+        responders={responders}
         incidents={visibleIncidents}
       />
 
-      {/* HOSPITALS */}
+      {/* =========================================================
+          FAMILY EMERGENCY CONTACTS
+      ========================================================== */}
+
+      <section className="rounded-2xl border border-navy-700 bg-navy-900 p-4 shadow-xl">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+              <Users className="h-5 w-5 text-emerald-400" />
+
+              Family Emergency Contacts
+            </h2>
+
+            <p className="mt-1 text-xs text-secondary-400">
+              Emergency contacts saved by the
+              user before an emergency.
+            </p>
+          </div>
+
+          <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+            {emergencyContacts.length}{' '}
+            Contact
+            {emergencyContacts.length === 1
+              ? ''
+              : 's'}
+          </div>
+        </div>
+
+        {emergencyContacts.length === 0 ? (
+          <div className="rounded-xl border border-navy-700 bg-navy-800 p-6 text-center">
+            <Phone className="mx-auto h-8 w-8 text-secondary-500" />
+
+            <p className="mt-2 text-sm font-semibold text-white">
+              No emergency contacts available
+            </p>
+
+            <p className="mt-1 text-xs text-secondary-400">
+              The user has not added any
+              family emergency contacts.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+              <p className="text-[11px] leading-relaxed text-secondary-400">
+                These numbers are provided by the
+                user for emergency notification.
+                During an emergency, the admin can
+                call a family member directly.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {emergencyContacts.map(
+                (contact) => (
+                  <EmergencyContactCard
+                    key={contact.id}
+                    contact={contact}
+                  />
+                ),
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* =========================================================
+          HOSPITAL MAP
+      ========================================================== */}
 
       <HospitalMap
         incidents={visibleIncidents}
       />
 
-      {/* INCIDENT QUEUE */}
+      {/* =========================================================
+          INCIDENT QUEUE
+      ========================================================== */}
 
       <section>
-        <h2 className="mb-3 text-lg font-bold text-white">
-          Incoming Incidents
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-white">
+              Incoming Incidents
+            </h2>
 
-        {sortedIncidents.length ===
-        0 ? (
+            <p className="mt-1 text-xs text-secondary-400">
+              Prioritized emergency reports requiring
+              admin coordination.
+            </p>
+          </div>
+
+          <div className="rounded-full border border-navy-700 bg-navy-900 px-3 py-1.5 text-[10px] font-bold text-secondary-400">
+            {sortedIncidents.length} INCIDENT
+            {sortedIncidents.length === 1
+              ? ''
+              : 'S'}
+          </div>
+        </div>
+
+        {sortedIncidents.length === 0 ? (
           <div className="card p-8 text-center text-sm text-secondary-400">
-            No incidents in the
-            system.
+            No incidents in the system.
           </div>
         ) : (
           <div className="space-y-3">
@@ -365,7 +597,9 @@ export function AdminDashboardPage({
         )}
       </section>
 
-      {/* ASSIGNMENT MODAL */}
+      {/* =========================================================
+          ASSIGNMENT MODAL
+      ========================================================== */}
 
       {assigningIncident && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
@@ -395,10 +629,8 @@ export function AdminDashboardPage({
               {availableResponders.length ===
               0 ? (
                 <p className="text-center text-sm text-secondary-400">
-                  No available
-                  responders. All
-                  units are busy or
-                  offline.
+                  No available responders.
+                  All units are busy or offline.
                 </p>
               ) : (
                 availableResponders.map(
@@ -415,11 +647,13 @@ export function AdminDashboardPage({
                         )
                       ).toFixed(1);
 
+                    const responderType =
+                      responder.type ||
+                      'Emergency Responder';
+
                     return (
                       <button
-                        key={
-                          responder.id
-                        }
+                        key={responder.id}
                         type="button"
                         onClick={() => {
                           onAssign(
@@ -435,7 +669,11 @@ export function AdminDashboardPage({
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-900">
-                            <Ambulance className="h-5 w-5 text-secondary-400" />
+                            <ResponderIcon
+                              type={
+                                responderType
+                              }
+                            />
                           </div>
 
                           <div>
@@ -444,7 +682,7 @@ export function AdminDashboardPage({
                             </div>
 
                             <div className="text-xs text-secondary-400">
-                              {responder.type}
+                              {responderType}
                             </div>
                           </div>
                         </div>
@@ -471,6 +709,148 @@ export function AdminDashboardPage({
   );
 }
 
+/* ===============================================================
+   FAMILY CONTACT CARD
+================================================================ */
+
+function EmergencyContactCard({
+  contact,
+}: {
+  contact: EmergencyContact;
+}) {
+  return (
+    <div className="rounded-xl border border-navy-700 bg-navy-800 p-4 transition hover:border-emerald-500/30">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
+          <Phone className="h-5 w-5 text-emerald-400" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-bold text-white">
+            {contact.name}
+          </div>
+
+          <div className="mt-0.5 text-xs text-secondary-400">
+            {contact.relation}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-navy-700 bg-navy-900 px-3 py-2">
+        <div className="text-[9px] uppercase tracking-wider text-secondary-500">
+          Phone Number
+        </div>
+
+        <div className="mt-0.5 truncate font-mono text-sm font-semibold text-white">
+          {contact.phone}
+        </div>
+      </div>
+
+      <a
+        href={`tel:${contact.phone}`}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-500 active:scale-[0.98]"
+      >
+        <Phone className="h-4 w-4" />
+
+        Call {contact.name}
+      </a>
+    </div>
+  );
+}
+
+/* ===============================================================
+   RESPONSE UNIT CARD
+================================================================ */
+
+function ResponseUnitCard({
+  icon,
+  title,
+  count,
+  className,
+}: {
+  icon: ReactNode;
+  title: string;
+  count: number;
+  className: string;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-3 ${className}`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-navy-900">
+          {icon}
+        </div>
+
+        <span className="text-xl font-bold text-white">
+          {count}
+        </span>
+      </div>
+
+      <div className="mt-2 text-xs font-semibold text-secondary-300">
+        {title}
+      </div>
+
+      <div className="mt-0.5 text-[9px] uppercase tracking-wider text-emerald-400">
+        Available
+      </div>
+    </div>
+  );
+}
+
+/* ===============================================================
+   RESPONDER ICON
+================================================================ */
+
+function ResponderIcon({
+  type,
+}: {
+  type: string;
+}) {
+  const normalized =
+    type.toLowerCase();
+
+  if (
+    normalized.includes('police')
+  ) {
+    return (
+      <Siren className="h-5 w-5 text-blue-400" />
+    );
+  }
+
+  if (
+    normalized.includes('fire')
+  ) {
+    return (
+      <Flame className="h-5 w-5 text-orange-400" />
+    );
+  }
+
+  if (
+    normalized.includes('rescue')
+  ) {
+    return (
+      <AlertOctagon className="h-5 w-5 text-purple-400" />
+    );
+  }
+
+  if (
+    normalized.includes('hospital')
+  ) {
+    return (
+      <Building className="h-5 w-5 text-emerald-400" />
+    );
+  }
+
+  return (
+    <Ambulance className="h-5 w-5 text-cyan-400" />
+  );
+}
+
+/* ===============================================================
+   STAT CARD
+================================================================ */
+
 function StatCard({
   label,
   value,
@@ -495,6 +875,10 @@ function StatCard({
   );
 }
 
+/* ===============================================================
+   INCIDENT CARD
+================================================================ */
+
 function AdminIncidentCard({
   incident,
   onView,
@@ -504,10 +888,15 @@ function AdminIncidentCard({
   onClose,
 }: {
   incident: Incident;
+
   onView: (id: string) => void;
+
   onVerify: (id: string) => void;
+
   onAssign: (id: string) => void;
+
   onEscalate: (id: string) => void;
+
   onClose: (id: string) => void;
 }) {
   const SourceIcon =
@@ -524,8 +913,7 @@ function AdminIncidentCard({
     incident.status === 'RESOLVED';
 
   const isSuspicious =
-    incident.status ===
-    'SUSPICIOUS';
+    incident.status === 'SUSPICIOUS';
 
   const canVerify =
     incident.status === 'NEW' ||
@@ -571,7 +959,7 @@ function AdminIncidentCard({
         )}
 
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
-        {/* IMAGE */}
+        {/* THUMBNAIL */}
 
         <div className="shrink-0 sm:w-24">
           {incident.imageData ? (
@@ -600,9 +988,7 @@ function AdminIncidentCard({
             </span>
 
             <SeverityBadge
-              severity={
-                incident.severity
-              }
+              severity={incident.severity}
             />
 
             <StatusBadge
@@ -660,13 +1046,11 @@ function AdminIncidentCard({
 
                 <CredibilityBadge
                   level={
-                    incident
-                      .credibility
+                    incident.credibility
                       .level
                   }
                   score={
-                    incident
-                      .credibility
+                    incident.credibility
                       .score
                   }
                 />
@@ -708,6 +1092,7 @@ function AdminIncidentCard({
               className="btn-ghost px-3 py-2 text-xs"
             >
               <Eye className="h-3.5 w-3.5" />
+
               View
             </button>
 
@@ -720,6 +1105,7 @@ function AdminIncidentCard({
                 className="btn bg-emerald-600 px-3 py-2 text-xs text-white hover:bg-emerald-700"
               >
                 <Check className="h-3.5 w-3.5" />
+
                 Verify
               </button>
             )}
@@ -733,6 +1119,7 @@ function AdminIncidentCard({
                 className="btn-primary px-3 py-2 text-xs"
               >
                 <Ambulance className="h-3.5 w-3.5" />
+
                 Assign
               </button>
             )}
@@ -746,6 +1133,7 @@ function AdminIncidentCard({
                 className="btn bg-amber-600 px-3 py-2 text-xs text-white hover:bg-amber-700"
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
+
                 Escalate
               </button>
             )}
@@ -759,6 +1147,7 @@ function AdminIncidentCard({
                 className="btn bg-slate-700 px-3 py-2 text-xs text-secondary-400 hover:bg-slate-600"
               >
                 <Ban className="h-3.5 w-3.5" />
+
                 Close
               </button>
             )}

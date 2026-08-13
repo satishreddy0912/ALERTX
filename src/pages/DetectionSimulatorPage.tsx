@@ -79,7 +79,7 @@ export function DetectionSimulatorPage({ onCreate, onGoDashboard, onViewIncident
   const [detectionStatus, setDetectionStatus] = useState<DetectionState | 'CONFIRMING'>('MONITORING');
   const [liveConfidence, setLiveConfidence] = useState(0);
   const [countdown, setCountdown] = useState(0);
-  const [countdownTotal, setCountdownTotal] = useState(5);
+  const [countdownTotal, setCountdownTotal] = useState(15);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const endTimeRef = useRef<number>(0);
